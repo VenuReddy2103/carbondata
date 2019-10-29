@@ -71,7 +71,7 @@ case class Field(column: String, var dataType: Option[String], name: Option[Stri
     storeType: Option[String] = Some("columnar"),
     var schemaOrdinal: Int = -1,
     var precision: Int = 0, var scale: Int = 0, var rawSchema: String = "",
-    var columnComment: String = "") {
+    var columnComment: String = "", var invisible: Boolean = false) {
   override def equals(o: Any) : Boolean = o match {
     case that: Field =>
       that.column.equalsIgnoreCase(this.column)
@@ -612,6 +612,7 @@ class TableNewProcessor(cm: TableModel) {
     val columnSchema = new ColumnSchema()
     columnSchema.setDataType(dataType)
     columnSchema.setColumnName(colName)
+    columnSchema.setInvisible(field.invisible)
     val isParentColumnRelation = map.isDefined && map.get.get(field).isDefined
     if (!isParentColumnRelation) {
       val highCardinalityDims = cm.highcardinalitydims.getOrElse(Seq())

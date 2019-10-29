@@ -440,13 +440,13 @@ public class CarbonTable implements Serializable, Writable {
           i = dimensionOrdinal - 1;
           complexTypeOrdinal = assignComplexOrdinal(complexDimension, complexTypeOrdinal);
         } else {
-          if (!columnSchema.isInvisible() && columnSchema.isSortColumn()) {
+          if (columnSchema.isSortColumn()) {
             this.numberOfSortColumns++;
           }
           if (!columnSchema.getEncodingList().contains(Encoding.DICTIONARY)) {
             CarbonDimension dimension = new CarbonDimension(columnSchema, dimensionOrdinal++,
                 columnSchema.getSchemaOrdinal(), -1, -1);
-            if (!columnSchema.isInvisible() && columnSchema.isSortColumn()) {
+            if (columnSchema.isSortColumn()) {
               this.numberOfNoDictSortColumns++;
             }
             allDimensions.add(dimension);
@@ -995,8 +995,8 @@ public class CarbonTable implements Serializable, Writable {
    */
   public List<String> getSortColumns(String tableName) {
     List<String> sort_columsList = new ArrayList<String>(allDimensions.size());
-    List<CarbonDimension> carbonDimensions = tableDimensionsMap.get(tableName);
-    for (CarbonDimension dim : carbonDimensions) {
+    //List<CarbonDimension> carbonDimensions = tableDimensionsMap.get(tableName);
+    for (CarbonDimension dim : allDimensions) {
       if (dim.isSortColumn()) {
         sort_columsList.add(dim.getColName());
       }

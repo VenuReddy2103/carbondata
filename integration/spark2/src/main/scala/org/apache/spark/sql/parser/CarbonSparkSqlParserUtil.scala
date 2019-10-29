@@ -26,9 +26,9 @@ import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserUtils.operationNotAllowed
 import org.apache.spark.sql.catalyst.parser.SqlBaseParser._
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.execution.command.{PartitionerField, TableModel, TableNewProcessor}
+import org.apache.spark.sql.execution.command.{Field, PartitionerField, TableModel, TableNewProcessor}
 import org.apache.spark.sql.execution.command.table.{CarbonCreateTableAsSelectCommand, CarbonCreateTableCommand}
-import org.apache.spark.sql.types.StructField
+import org.apache.spark.sql.types.{LongType, MetadataBuilder, StructField}
 
 import org.apache.carbondata.common.exceptions.sql.MalformedCarbonCommandException
 import org.apache.carbondata.core.constants.CarbonCommonConstants
@@ -58,6 +58,68 @@ object CarbonSparkSqlParserUtil {
       case _: IllegalArgumentException =>
         throw new MalformedCarbonCommandException(
           "Table property 'streaming' should be either 'true' or 'false'")
+    }
+  }
+
+  private def validateAndProcessIndexProperty(tableProperties: mutable.Map[String, String], parser: CarbonSpark2SqlParser, tableFields: Seq[Field]): Seq[Field] = {
+    val option = tableProperties.get(CarbonCommonConstants.CREATE_INDEX)
+    //TODO This property should not be removed from tblproperties. It is removed after processing the option temporarily to avoid MalformedJsonException
+    tableProperties.remove(CarbonCommonConstants.CREATE_INDEX)
+    if (!option.isDefined) {
+      return tableFields
+    }
+    if (option.get.isEmpty) {
+      throw new MalformedCarbonCommandException(
+        s"Carbon ${CarbonCommonConstants.CREATE_INDEX} property is invalid. Option value is empty")
+    }
+
+    scala.util.parsing.json.JSON.parseFull(option.get) match {
+      case Some(opt) => val map = opt.asInstanceOf[Map[String, Any]]
+        val indexType = map.getOrElse("indextype", "").asInstanceOf[String]
+        val sourceColumns = map.getOrElse("sourcecolumns", "").asInstanceOf[List[String]]
+        val dataType = map.getOrElse("targetdatatype", "").asInstanceOf[String]
+        val targetColumn = map.getOrElse("targetcolumn", "").asInstanceOf[String]
+
+        /* Validate target column */
+        if (None != tableFields.find(_.column.equalsIgnoreCase(targetColumn))) {
+          throw new MalformedCarbonCommandException(
+            s"Carbon ${CarbonCommonConstants.CREATE_INDEX} property is invalid. targetColumn : $targetColumn is not " +
+              s"allowed. It matches with another column name in the table.")
+        }
+
+        /* Validate source columns */
+        sourceColumns.foreach { e =>
+          if (None == tableFields.find(_.column.equalsIgnoreCase(e))) {
+            throw new MalformedCarbonCommandException(
+              s"Carbon ${CarbonCommonConstants.CREATE_INDEX} property is invalid. Source Column : $e is " +
+                s"not a valid column in table.")
+          }
+        }
+        /* Add target column in sort column */
+        var sortKeyOption = tableProperties.getOrElse(CarbonCommonConstants.SORT_COLUMNS, "")
+        if (!sortKeyOption.isEmpty()) {
+          /* Source columns are not allowed to be specified in sort columns. Instead target column is implicitly
+          treated as sort column */
+          sourceColumns.foreach { e =>
+            if (None != sortKeyOption.split(",").foreach(_.equalsIgnoreCase(e))) {
+              throw new MalformedCarbonCommandException(
+                s"Carbon ${CarbonCommonConstants.CREATE_INDEX} property is invalid. " +
+                  s"Source column : $e is not allowed in ${CarbonCommonConstants.SORT_COLUMNS} property. " +
+                  s"Instead, target column is implicitly treated as sort column.")
+            }
+          }
+
+          sortKeyOption += "," + targetColumn
+        } else {
+          sortKeyOption = targetColumn
+        }
+        tableProperties.put(CarbonCommonConstants.SORT_COLUMNS, sortKeyOption)
+        tableFields :+ parser.getField(
+          new StructField(targetColumn,
+            LongType,
+            true,
+            new MetadataBuilder().putBoolean("invisible", true).build()))
+      case None => tableFields
     }
   }
 
@@ -205,6 +267,7 @@ object CarbonSparkSqlParserUtil {
       }
       table
     } else {
+      fields = validateAndProcessIndexProperty(tableProperties, parser, fields)
       // prepare table model of the collected tokens
       val tableModel: TableModel = parser.prepareTableModel(
         ifNotExists,

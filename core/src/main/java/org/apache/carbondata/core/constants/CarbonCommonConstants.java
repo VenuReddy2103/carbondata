@@ -433,6 +433,7 @@ public final class CarbonCommonConstants {
    */
   public static final String INDEX_COLUMNS = "INDEX_COLUMNS";
 
+  public static final String CREATE_INDEX = "create_index";
   /**
    * key for dictionary path
    */

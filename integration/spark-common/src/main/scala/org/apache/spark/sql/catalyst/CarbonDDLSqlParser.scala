@@ -1428,7 +1428,7 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
           field.precision, field.scale, field.rawSchema, field.columnComment)
       case "long" => Field(field.column, Some("Long"), field.name, Some(null), field.parent,
         field.storeType, field.schemaOrdinal, field.precision, field.scale, field.rawSchema,
-        field.columnComment)
+        field.columnComment, field.invisible)
       case "double" => Field(field.column, Some("Double"), field.name, Some(null), field.parent,
         field.storeType, field.schemaOrdinal, field.precision, field.scale, field.rawSchema,
         field.columnComment)
