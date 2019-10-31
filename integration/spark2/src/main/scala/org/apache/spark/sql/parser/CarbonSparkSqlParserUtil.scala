@@ -79,6 +79,7 @@ object CarbonSparkSqlParserUtil {
         val sourceColumns = map.getOrElse("sourcecolumns", "").asInstanceOf[List[String]]
         val dataType = map.getOrElse("targetdatatype", "").asInstanceOf[String]
         val targetColumn = map.getOrElse("targetcolumn", "").asInstanceOf[String]
+        val handlerClass = map.getOrElse("handlerclass", "").asInstanceOf[String]
 
         /* Validate target column */
         if (None != tableFields.find(_.column.equalsIgnoreCase(targetColumn))) {
@@ -95,17 +96,20 @@ object CarbonSparkSqlParserUtil {
                 s"not a valid column in table.")
           }
         }
+
         /* Add target column in sort column */
         var sortKeyOption = tableProperties.getOrElse(CarbonCommonConstants.SORT_COLUMNS, "")
         if (!sortKeyOption.isEmpty()) {
           /* Source columns are not allowed to be specified in sort columns. Instead target column is implicitly
           treated as sort column */
           sourceColumns.foreach { e =>
-            if (None != sortKeyOption.split(",").foreach(_.equalsIgnoreCase(e))) {
-              throw new MalformedCarbonCommandException(
-                s"Carbon ${CarbonCommonConstants.CREATE_INDEX} property is invalid. " +
-                  s"Source column : $e is not allowed in ${CarbonCommonConstants.SORT_COLUMNS} property. " +
-                  s"Instead, target column is implicitly treated as sort column.")
+            sortKeyOption.split(",").foreach { key =>
+              if (key.equalsIgnoreCase(e) == true) {
+                throw new MalformedCarbonCommandException(
+                  s"Carbon ${CarbonCommonConstants.CREATE_INDEX} property is invalid. " +
+                    s"Source column : $key is not allowed in ${CarbonCommonConstants.SORT_COLUMNS} property. " +
+                    s"Instead, target column is implicitly treated as sort column.")
+              }
             }
           }
 

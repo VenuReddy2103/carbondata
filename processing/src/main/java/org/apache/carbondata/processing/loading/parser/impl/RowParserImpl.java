@@ -33,6 +33,8 @@ public class RowParserImpl implements RowParser {
 
   private int[] inputMapping;
 
+  private DataField[] input;
+
   private int numberOfColumns;
 
   public RowParserImpl(DataField[] output, CarbonDataLoadConfiguration configuration) {
@@ -45,7 +47,7 @@ public class RowParserImpl implements RowParser {
     String nullFormat =
         configuration.getDataLoadProperty(DataLoadProcessorConstants.SERIALIZATION_NULL_FORMAT)
             .toString();
-    DataField[] input = getInput(configuration);
+    input = getInput(configuration);
     genericParsers = new GenericParser[input.length];
     for (int i = 0; i < genericParsers.length; i++) {
       genericParsers[i] =
@@ -78,6 +80,14 @@ public class RowParserImpl implements RowParser {
           break;
         }
       }
+
+      // TODO: Need to check the create index table property along with is Invisible instead of isSortColumn()
+      if (fields[i].getColumn().isInvisible() && fields[i].getColumn().isSortColumn()) {
+        input[k] = fields[i];
+        // TODO Need to check if it is ok to schema ordinal for invisible columns be next to that of user configured columns
+        inputMapping[k] = fields[i].getColumn().getSchemaOrdinal();
+        k++;
+      }
     }
     return input;
   }
@@ -95,7 +105,13 @@ public class RowParserImpl implements RowParser {
     }
     Object[] out = new Object[genericParsers.length];
     for (int i = 0; i < genericParsers.length; i++) {
-      Object obj = row[inputMapping[i]];
+      Object obj;
+      if (input[i].getColumn().isInvisible() && input[i].getColumn().isSortColumn()) {
+        // TODO Need to call generate index handler class here and assign it to obj
+        obj = "0";
+      } else {
+        obj = row[inputMapping[i]];
+      }
       out[outputMapping[i]] = genericParsers[i].parse(obj);
     }
     return out;

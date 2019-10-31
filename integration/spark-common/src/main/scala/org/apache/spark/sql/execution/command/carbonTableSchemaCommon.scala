@@ -293,7 +293,7 @@ class AlterTableColumnSchemaGenerator(
 
     // Check if there is any duplicate measures or dimensions.
     // Its based on the dimension name and measure name
-    allColumns.filter(x => !x.isInvisible).groupBy(_.getColumnName)
+    allColumns.groupBy(_.getColumnName)
       .foreach(f => if (f._2.size > 1) {
         val name = f._1
         sys.error(s"Duplicate column found with name: $name")

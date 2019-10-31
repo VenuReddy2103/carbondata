@@ -156,6 +156,16 @@ public class CarbonColumn implements Serializable {
   }
 
   /**
+   * @return true if column is a sort column, otherwise false
+   */
+  public boolean isSortColumn() {
+    if (isDimension()) {
+      return columnSchema.isSortColumn();
+    }
+    return false;
+  }
+
+  /**
    * @return if column use inverted index return true, else false.
    */
   public Boolean isUseInvertedIndex() {

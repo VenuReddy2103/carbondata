@@ -667,7 +667,8 @@ public class CarbonTable implements Serializable, Writable {
    * @return all dimension of a table
    */
   public List<CarbonDimension> getDimensionByTableName(String tableName) {
-    return tableDimensionsMap.get(tableName);
+    assert (getTableName().equals(tableName));
+    return getDimensions();
   }
 
   /**
@@ -684,7 +685,7 @@ public class CarbonTable implements Serializable, Writable {
    * Return all dimensions of the table
    */
   public List<CarbonDimension> getDimensions() {
-    return tableDimensionsMap.get(getTableName());
+    return allDimensions;
   }
 
   /**
@@ -707,6 +708,7 @@ public class CarbonTable implements Serializable, Writable {
    * This method will give storage order column list
    */
   public List<CarbonColumn> getStreamStorageOrderColumn(String tableName) {
+    //TODO Need to check if has to be all dimensions
     List<CarbonDimension> dimensions = tableDimensionsMap.get(tableName);
     List<CarbonMeasure> measures = tableMeasuresMap.get(tableName);
     List<CarbonColumn> columnList = new ArrayList<>(dimensions.size() + measures.size());
@@ -753,7 +755,7 @@ public class CarbonTable implements Serializable, Writable {
    */
   public CarbonDimension getDimensionByName(String tableName, String columnName) {
     CarbonDimension carbonDimension = null;
-    List<CarbonDimension> dimList = tableDimensionsMap.get(tableName);
+    List<CarbonDimension> dimList = getDimensionByTableName(tableName);
     String[] colSplits = columnName.split("\\.");
     StringBuffer tempColName = new StringBuffer(colSplits[0]);
     for (String colSplit : colSplits) {
@@ -765,12 +767,14 @@ public class CarbonTable implements Serializable, Writable {
         dimList = carbonDimension.getListOfChildDimensions();
       }
     }
+    // TODO Need to check
     List<CarbonDimension> implicitDimList = tableImplicitDimensionsMap.get(tableName);
     if (carbonDimension == null) {
       carbonDimension = getCarbonDimension(columnName, implicitDimList);
     }
 
     if (colSplits.length > 1) {
+      // TODO Need to check
       List<CarbonDimension> dimLists = tableDimensionsMap.get(tableName);
       for (CarbonDimension dims : dimLists) {
         if (dims.getColName().equalsIgnoreCase(colSplits[0])) {
