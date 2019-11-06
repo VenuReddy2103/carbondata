@@ -74,14 +74,14 @@ object CarbonSparkSqlParserUtil {
       val handlers = option.get.split(",")
       handlers.foreach { e =>
         /* Validate target column name */
-        if (None != tableFields.find(_.column.equalsIgnoreCase(e))) {
+        if (tableFields.exists(_.column.equalsIgnoreCase(e))) {
           throw new MalformedCarbonCommandException(
             s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. handler value : $e is not " +
               s"allowed. It matches with another column name in the table. Cannot create column with it.")
         }
 
         val sourceColumnsOption = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + s".$e.sourcecolumns")
-        if (!sourceColumnsOption.isDefined) {
+        if (sourceColumnsOption.isEmpty) {
           throw new MalformedCarbonCommandException(
             s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
               s"${CarbonCommonConstants.INDEX_HANDLER}.$e.sourcecolumns property is not specified.")
@@ -93,7 +93,7 @@ object CarbonSparkSqlParserUtil {
 
         /* Validate source columns */
         val sources = sourceColumnsOption.get.split(",")
-        if (sources.distinct.size != sources.size) {
+        if (sources.distinct.length != sources.size) {
           throw new MalformedCarbonCommandException(
             s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
               s"${CarbonCommonConstants.INDEX_HANDLER}.$e.sourcecolumns property have duplicate columns")
@@ -120,14 +120,14 @@ object CarbonSparkSqlParserUtil {
             className
           case None =>
             /* use handler type to find the default implementation */
-            if (!handlerTypeOption.isDefined) {
+            if (handlerTypeOption.isEmpty) {
               throw new MalformedCarbonCommandException(
                 s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
                   s"Both ${CarbonCommonConstants.INDEX_HANDLER}.$e.class and " +
                   s"${CarbonCommonConstants.INDEX_HANDLER}.$e.type properties are not specified")
             } else if (handlerTypeOption.get.equalsIgnoreCase("geohash")) {
               /* Use geoHash default implementation */
-              val className = classOf[org.apache.carbondata.core.util.GeoHashDefault].getName()
+              val className = classOf[org.apache.carbondata.core.util.GeoHashDefault].getName
               tableProperties.put(s"${CarbonCommonConstants.INDEX_HANDLER}.$e.class", className)
               className
             } else {
@@ -156,12 +156,12 @@ object CarbonSparkSqlParserUtil {
 
         /* Add target column in sort column */
         var sortKeyOption = tableProperties.getOrElse(CarbonCommonConstants.SORT_COLUMNS, "")
-        if (!sortKeyOption.isEmpty()) {
+        if (!sortKeyOption.isEmpty) {
           /* Source columns are not allowed to be specified in sort columns. Instead target column is implicitly
         treated as sort column */
           sources.foreach { column =>
             sortKeyOption.split(",").foreach { key =>
-              if (key.equalsIgnoreCase(column) == true) {
+              if (key.equalsIgnoreCase(column)) {
                 throw new MalformedCarbonCommandException(
                   s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
                     s"Source column : $key is not allowed in ${CarbonCommonConstants.SORT_COLUMNS} property. " +
