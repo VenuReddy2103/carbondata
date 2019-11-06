@@ -767,14 +767,12 @@ public class CarbonTable implements Serializable, Writable {
         dimList = carbonDimension.getListOfChildDimensions();
       }
     }
-    // TODO Need to check
     List<CarbonDimension> implicitDimList = tableImplicitDimensionsMap.get(tableName);
     if (carbonDimension == null) {
       carbonDimension = getCarbonDimension(columnName, implicitDimList);
     }
 
     if (colSplits.length > 1) {
-      // TODO Need to check
       List<CarbonDimension> dimLists = tableDimensionsMap.get(tableName);
       for (CarbonDimension dims : dimLists) {
         if (dims.getColName().equalsIgnoreCase(colSplits[0])) {
@@ -999,7 +997,6 @@ public class CarbonTable implements Serializable, Writable {
    */
   public List<String> getSortColumns(String tableName) {
     List<String> sort_columsList = new ArrayList<String>(allDimensions.size());
-    //List<CarbonDimension> carbonDimensions = tableDimensionsMap.get(tableName);
     for (CarbonDimension dim : allDimensions) {
       if (dim.isSortColumn()) {
         sort_columsList.add(dim.getColName());

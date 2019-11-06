@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Map;
 
 import org.apache.carbondata.core.constants.CarbonCommonConstants;
-import org.apache.carbondata.core.util.CustomIndex;
 import org.apache.carbondata.processing.loading.CarbonDataLoadConfiguration;
 import org.apache.carbondata.processing.loading.DataField;
 import org.apache.carbondata.processing.loading.constants.DataLoadProcessorConstants;
@@ -51,7 +50,8 @@ public class RowParserImpl implements RowParser {
     String nullFormat =
         configuration.getDataLoadProperty(DataLoadProcessorConstants.SERIALIZATION_NULL_FORMAT)
             .toString();
-    tableProperties = configuration.getTableSpec().getCarbonTable().getTableInfo().getFactTable().getTableProperties();
+    tableProperties = configuration.getTableSpec().getCarbonTable().getTableInfo()
+            .getFactTable().getTableProperties();
     input = getInput(configuration);
     genericParsers = new GenericParser[input.length];
     for (int i = 0; i < genericParsers.length; i++) {
@@ -87,14 +87,15 @@ public class RowParserImpl implements RowParser {
       }
 
       if (fields[i].getColumn().isInvisible()) {
-          String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
-                  fields[i].getColumn().getColName() + ".class");
-          if (handler != null) {
-              input[k] = fields[i];
-              // TODO Need to check if it is ok to schema ordinal for invisible columns be next to that of user configured columns
-              inputMapping[k] = fields[i].getColumn().getSchemaOrdinal();
-              k++;
-          }
+        String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
+                fields[i].getColumn().getColName() + ".class");
+        if (handler != null) {
+          input[k] = fields[i];
+          // TODO Need to check if it is ok to schema ordinal for invisible columns be next to that
+          // of user configured columns
+          inputMapping[k] = fields[i].getColumn().getSchemaOrdinal();
+          k++;
+        }
       }
     }
     return input;
@@ -116,17 +117,17 @@ public class RowParserImpl implements RowParser {
     for (int i = 0; i < genericParsers.length; i++) {
       Object obj = null;
       if (input[i].getColumn().isInvisible()) {
-          String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
-                  input[i].getColumn().getColName() + ".class");
-          if (handler != null) {
-              try {
-                // TODO Need to call generate index handler class here and assign it to obj
-                //obj = ((CustomIndex)Class.forName(handler).newInstance()).generate();
-                obj = "0";
-              } catch (Exception e) {
-                  throw new RuntimeException(e);
-              }
+        String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
+                input[i].getColumn().getColName() + ".class");
+        if (handler != null) {
+          try {
+            // TODO Need to call generate index handler class here and assign it to obj
+            //obj = ((CustomIndex)Class.forName(handler).newInstance()).generate();
+            obj = "0";
+          } catch (Exception e) {
+            throw new RuntimeException(e);
           }
+        }
       } else {
         obj = row[inputMapping[i]];
       }

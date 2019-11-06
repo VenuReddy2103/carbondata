@@ -53,6 +53,21 @@ private[sql] case class CarbonDescribeFormattedCommand(
       (field.name, field.dataType.simpleString, colComment)
     }
 
+    /* Append invisible columns */
+    val columns = relation.carbonTable.getTableInfo.getFactTable.getListOfColumns.asScala
+    val invisibleColumns = for (column <- columns if column.isInvisible) yield {
+      (column.getColumnName, column.getDataType.getName.toLowerCase, "")
+    }
+
+    if (invisibleColumns.nonEmpty) {
+      results ++= Seq(
+        ("", "", ""),
+        ("## Invisible columns", "", "")
+      )
+
+      results ++= invisibleColumns
+    }
+
     val carbonTable = relation.carbonTable
     val tblProps = carbonTable.getTableInfo.getFactTable.getTableProperties.asScala
     // If Sort Columns are given and Sort Scope is not given in either table properties
