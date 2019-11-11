@@ -256,11 +256,6 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
     }
     f.rawSchema = x
     f.columnComment = plainComment
-    f.invisible = if (col.metadata.contains("invisible")) {
-      col.metadata.getBoolean("invisible")
-    } else {
-      false
-    }
     f
   }
 
@@ -451,8 +446,7 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
 
         // TODO Need to convert it to DataType object and pass it to StructField dataType
         val dataType = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + s".$e.datatype")
-        fields += getField(StructField(e, LongType, nullable = true,
-          new MetadataBuilder().putBoolean("invisible", value = true).build()))
+        fields += getField(StructField(e, LongType))
       }
     }
 
@@ -1625,7 +1619,7 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
           field.precision, field.scale, field.rawSchema, field.columnComment)
       case "long" => Field(field.column, Some("Long"), field.name, Some(null), field.parent,
         field.storeType, field.schemaOrdinal, field.precision, field.scale, field.rawSchema,
-        field.columnComment, field.invisible)
+        field.columnComment)
       case "double" => Field(field.column, Some("Double"), field.name, Some(null), field.parent,
         field.storeType, field.schemaOrdinal, field.precision, field.scale, field.rawSchema,
         field.columnComment)

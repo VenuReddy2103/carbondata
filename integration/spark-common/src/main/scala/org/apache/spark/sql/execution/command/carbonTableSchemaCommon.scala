@@ -71,7 +71,7 @@ case class Field(column: String, var dataType: Option[String], name: Option[Stri
     storeType: Option[String] = Some("columnar"),
     var schemaOrdinal: Int = -1,
     var precision: Int = 0, var scale: Int = 0, var rawSchema: String = "",
-    var columnComment: String = "", var invisible: Boolean = false) {
+    var columnComment: String = "") {
   override def equals(o: Any) : Boolean = o match {
     case that: Field =>
       that.column.equalsIgnoreCase(this.column)
@@ -293,7 +293,7 @@ class AlterTableColumnSchemaGenerator(
 
     // Check if there is any duplicate measures or dimensions.
     // Its based on the dimension name and measure name
-    allColumns.groupBy(_.getColumnName)
+    allColumns.filter(x => !x.isInvisible).groupBy(_.getColumnName)
       .foreach(f => if (f._2.size > 1) {
         val name = f._1
         sys.error(s"Duplicate column found with name: $name")
@@ -612,7 +612,6 @@ class TableNewProcessor(cm: TableModel) {
     val columnSchema = new ColumnSchema()
     columnSchema.setDataType(dataType)
     columnSchema.setColumnName(colName)
-    columnSchema.setInvisible(field.invisible)
     val isParentColumnRelation = map.isDefined && map.get.get(field).isDefined
     if (!isParentColumnRelation) {
       val highCardinalityDims = cm.highcardinalitydims.getOrElse(Seq())

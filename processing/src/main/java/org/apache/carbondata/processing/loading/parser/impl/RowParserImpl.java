@@ -76,6 +76,7 @@ public class RowParserImpl implements RowParser {
     DataField[] input = new DataField[fields.length];
     inputMapping = new int[input.length];
     int k = 0;
+    int variableColumnOffset = numberOfColumns - 1;
     for (int i = 0; i < fields.length; i++) {
       for (int j = 0; j < numberOfColumns; j++) {
         if (header[j].equalsIgnoreCase(fields[i].getColumn().getColName())) {
@@ -86,14 +87,12 @@ public class RowParserImpl implements RowParser {
         }
       }
 
-      if (fields[i].getColumn().isInvisible()) {
+      if (fields[i].getColumn().getSchemaOrdinal() == -1) {
         String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
                 fields[i].getColumn().getColName() + ".class");
         if (handler != null) {
           input[k] = fields[i];
-          // TODO Need to check if it is ok to schema ordinal for invisible columns be next to that
-          // of user configured columns
-          inputMapping[k] = fields[i].getColumn().getSchemaOrdinal();
+          inputMapping[k] = variableColumnOffset++;
           k++;
         }
       }
@@ -116,7 +115,7 @@ public class RowParserImpl implements RowParser {
     Object[] out = new Object[genericParsers.length];
     for (int i = 0; i < genericParsers.length; i++) {
       Object obj = null;
-      if (input[i].getColumn().isInvisible()) {
+      if (input[i].getColumn().getSchemaOrdinal() == -1) {
         String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
                 input[i].getColumn().getColName() + ".class");
         if (handler != null) {

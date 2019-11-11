@@ -53,19 +53,19 @@ private[sql] case class CarbonDescribeFormattedCommand(
       (field.name, field.dataType.simpleString, colComment)
     }
 
-    /* Append invisible columns */
+    /* Append non-schema columns */
     val columns = relation.carbonTable.getTableInfo.getFactTable.getListOfColumns.asScala
-    val invisibleColumns = for (column <- columns if column.isInvisible) yield {
+    val implicitColumns = for (column <- columns if column.getSchemaOrdinal == -1) yield {
       (column.getColumnName, column.getDataType.getName.toLowerCase, "")
     }
 
-    if (invisibleColumns.nonEmpty) {
+    if (implicitColumns.nonEmpty) {
       results ++= Seq(
         ("", "", ""),
-        ("## Invisible columns", "", "")
+        ("## Non-Schema Columns", "", "")
       )
 
-      results ++= invisibleColumns
+      results ++= implicitColumns
     }
 
     val carbonTable = relation.carbonTable
