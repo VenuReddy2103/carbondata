@@ -406,6 +406,7 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
           val instance = handlerClass.newInstance().asInstanceOf[
             CustomIndex[Long, String, java.util.List[Array[Long]]]]
           instance.validateOption(tableProperties.asJava)
+          instance.init(tableProperties.asJava)
         } catch {
           case ex: ClassNotFoundException =>
             throw new MalformedCarbonCommandException(
