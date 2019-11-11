@@ -934,4 +934,21 @@ object AlterTableUtil {
         CarbonCommonConstants.CARBON_LOAD_MIN_SIZE_INMB)
     }
   }
+
+  def validateForIndexHandlerSources(carbonTable: CarbonTable, alterColumns: List[String]): Unit = {
+    // Do not allow index handler's source columns to be altered
+    val properties = carbonTable.getTableInfo.getFactTable.getTableProperties.asScala
+    val indexProperty = properties.get(CarbonCommonConstants.INDEX_HANDLER)
+    if (indexProperty.isDefined) {
+      indexProperty.get.split(",") foreach { element =>
+        val srcColumns
+        = properties.get(CarbonCommonConstants.INDEX_HANDLER + s".$element.sourcecolumns")
+        val common = alterColumns.intersect(srcColumns.get.split(","))
+        if (common.nonEmpty) {
+          throw new MalformedCarbonCommandException(s"Columns present in " +
+            s"${CarbonCommonConstants.INDEX_HANDLER} table property cannot be altered.")
+        }
+      }
+    }
+  }
 }

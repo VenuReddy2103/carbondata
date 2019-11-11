@@ -53,6 +53,21 @@ private[sql] case class CarbonDescribeFormattedCommand(
       (field.name, field.dataType.simpleString, colComment)
     }
 
+    /* Append non-schema columns */
+    val columns = relation.carbonTable.getTableInfo.getFactTable.getListOfColumns.asScala
+    val implicitColumns = for (column <- columns if column.getSchemaOrdinal == -1) yield {
+      (column.getColumnName, column.getDataType.getName.toLowerCase, "")
+    }
+
+    if (implicitColumns.nonEmpty) {
+      results ++= Seq(
+        ("", "", ""),
+        ("## Non-Schema Columns", "", "")
+      )
+
+      results ++= implicitColumns
+    }
+
     val carbonTable = relation.carbonTable
     val tblProps = carbonTable.getTableInfo.getFactTable.getTableProperties.asScala
     // If Sort Columns are given and Sort Scope is not given in either table properties
