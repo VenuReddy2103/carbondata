@@ -55,17 +55,17 @@ private[sql] case class CarbonDescribeFormattedCommand(
 
     /* Append non-schema columns */
     val columns = relation.carbonTable.getTableInfo.getFactTable.getListOfColumns.asScala
-    val implicitColumns = for (column <- columns if column.getSchemaOrdinal == -1) yield {
+    val nonSchemaColumns = columns.filter(column => column.getSchemaOrdinal == -1)
+      .map(column => {
       (column.getColumnName, column.getDataType.getName.toLowerCase, "")
-    }
+    })
 
-    if (implicitColumns.nonEmpty) {
+    if (nonSchemaColumns.nonEmpty) {
       results ++= Seq(
         ("", "", ""),
         ("## Non-Schema Columns", "", "")
       )
-
-      results ++= implicitColumns
+      results ++= nonSchemaColumns
     }
 
     val carbonTable = relation.carbonTable

@@ -17,7 +17,9 @@
 
 package org.apache.spark.sql.catalyst
 
+import java.io.{ByteArrayOutputStream, ObjectOutputStream}
 import java.text.SimpleDateFormat
+import java.util.Base64
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -310,53 +312,56 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
   }
 
   /**
-   * The method parses, validates and processes the index_handler property.
-   *
-   * @param tableProperties Table properties
-   * @param tableFields     Sequence of table fields
-   * @return <Seq[Field]> Sequence of table fields
-   *
-   */
+    * The method parses, validates and processes the index_handler property.
+    *
+    * @param tableProperties Table properties
+    * @param tableFields     Sequence of table fields
+    * @return <Seq[Field]> Sequence of table fields
+    */
   private def processIndexProperty(tableProperties: mutable.Map[String, String],
                                    tableFields: Seq[Field]): Seq[Field] = {
     val option = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER)
     val fields = ListBuffer[Field]()
     if (option.isDefined) {
-      if (option.get.isEmpty) {
+      if (option.get.trim.isEmpty) {
         throw new MalformedCarbonCommandException(
           s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
             s"Option value is empty.")
       }
 
-      val handlers = option.get.split(",")
-      handlers.foreach { e =>
+      option.get.split(",").map(_.trim).foreach { handler =>
         /* Validate target column name */
-        if (tableFields.exists(_.column.equalsIgnoreCase(e))) {
+        if (tableFields.exists(_.column.equalsIgnoreCase(handler))) {
           throw new MalformedCarbonCommandException(
             s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
-              s"handler value : $e is not allowed. It matches with another column name in table. " +
-              s"Cannot create column with it.")
+              s"handler: $handler must not match with any other column name in the table")
         }
+        val TYPE = s"${CarbonCommonConstants.INDEX_HANDLER}.$handler.type"
+        val SOURCE_COLUMNS = s"${CarbonCommonConstants.INDEX_HANDLER}.$handler.sourcecolumns"
+        val SOURCE_COLUMN_TYPES
+                  = s"${CarbonCommonConstants.INDEX_HANDLER}.$handler.sourcecolumntypes"
+        val HANDLER_CLASS = s"${CarbonCommonConstants.INDEX_HANDLER}.$handler.class"
+        val HANDLER_INSTANCE = s"${CarbonCommonConstants.INDEX_HANDLER}.$handler.instance"
 
-        val sourceColumnsOption = tableProperties.get(
-          CarbonCommonConstants.INDEX_HANDLER + s".$e.sourcecolumns")
+        val sourceColumnsOption = tableProperties.get(SOURCE_COLUMNS)
         if (sourceColumnsOption.isEmpty) {
           throw new MalformedCarbonCommandException(
             s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
-              s"${CarbonCommonConstants.INDEX_HANDLER}.$e.sourcecolumns property is not specified.")
-        } else if (sourceColumnsOption.get.isEmpty) {
+              s"$SOURCE_COLUMNS property must be specified.")
+        } else if (sourceColumnsOption.get.trim.isEmpty) {
           throw new MalformedCarbonCommandException(
             s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
-              s"${CarbonCommonConstants.INDEX_HANDLER}.$e.sourcecolumns property cannot be empty.")
+              s"$SOURCE_COLUMNS property cannot be empty.")
         }
 
+        val sourcesWithoutSpaces = sourceColumnsOption.get.replaceAll("\\s", "")
+
         /* Validate source columns */
-        val sources = sourceColumnsOption.get.split(",")
+        val sources = sourcesWithoutSpaces.split(",")
         if (sources.distinct.length != sources.size) {
           throw new MalformedCarbonCommandException(
             s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
-              s"${CarbonCommonConstants.INDEX_HANDLER}.$e.sourcecolumns property " +
-              s"have duplicate columns.")
+              s"$SOURCE_COLUMNS property cannot have duplicate columns.")
         }
 
         val sourceTypes = StringBuilder.newBuilder
@@ -366,38 +371,33 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
             case None =>
               throw new MalformedCarbonCommandException(
                 s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
-                  s"Source column : $column in property " +
-                  s"${CarbonCommonConstants.INDEX_HANDLER}.$e.sourcecolumns " +
-                  "is not a valid column in table.")
+                  s"Source column: $column in property " +
+                  s"$SOURCE_COLUMNS must be a column in the table.")
           }
         }
 
-        tableProperties.put(CarbonCommonConstants.INDEX_HANDLER +
-          s".$e.sourcecolumntypes", sourceTypes.dropRight(1).toString())
+        tableProperties.put(SOURCE_COLUMNS, sourcesWithoutSpaces)
+        tableProperties.put(SOURCE_COLUMN_TYPES, sourceTypes.dropRight(1).toString())
 
-        val handlerType = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + s".$e.type")
-        val handlerClass = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + s".$e.class")
-
+        val handlerType = tableProperties.get(TYPE)
+        val handlerClass = tableProperties.get(HANDLER_CLASS)
         val handlerClassName: String = handlerClass match {
-          case Some(className) =>
-            className
+          case Some(className) => className.trim
           case None =>
             /* use handler type to find the default implementation */
             if (handlerType.isEmpty) {
               throw new MalformedCarbonCommandException(
                 s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
-                  s"Both ${CarbonCommonConstants.INDEX_HANDLER}.$e.class and " +
-                  s"${CarbonCommonConstants.INDEX_HANDLER}.$e.type properties are not specified")
-            } else if (handlerType.get.equalsIgnoreCase("geohash")) {
+                  s"Either $HANDLER_CLASS Or $TYPE properties must be specified.")
+            } else if (handlerType.get.trim.equalsIgnoreCase("geohash")) {
               /* Use geoHash default implementation */
               val className = classOf[org.apache.carbondata.core.util.GeoHashDefault].getName
-              tableProperties.put(s"${CarbonCommonConstants.INDEX_HANDLER}.$e.class", className)
+              tableProperties.put(HANDLER_CLASS, className)
               className
             } else {
               throw new MalformedCarbonCommandException(
                 s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
-                  s"Unsupported value : ${handlerType.get} specified in property " +
-                  s"${CarbonCommonConstants.INDEX_HANDLER}.$e.type")
+                  s"Unsupported value: ${handlerType.get} specified for property $TYPE.")
             }
         }
 
@@ -405,18 +405,23 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
           val handlerClass: Class[_] = java.lang.Class.forName(handlerClassName)
           val instance = handlerClass.newInstance().asInstanceOf[
             CustomIndex[Long, String, java.util.List[Array[Long]]]]
-          instance.validateOption(tableProperties.asJava)
-          instance.init(tableProperties.asJava)
+          instance.init(handler, tableProperties.asJava)
+
+          // TODO Need to check to how to store the instance. This serialization may be incorrect.
+          val bos = new ByteArrayOutputStream()
+          val oos = new ObjectOutputStream(bos)
+          oos.writeObject(instance)
+          oos.flush()
+          tableProperties.put(HANDLER_INSTANCE, Base64.getEncoder().encodeToString(bos.toByteArray))
         } catch {
           case ex: ClassNotFoundException =>
             throw new MalformedCarbonCommandException(
               s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property process failed. " +
-                s"$handlerClassName class in property " +
-                s"${CarbonCommonConstants.INDEX_HANDLER}.$e.class is failed with $ex")
+                s"$handlerClassName class in property $HANDLER_CLASS failed with $ex")
           case ex@(_: InstantiationError | _: IllegalAccessException) =>
             throw new MalformedCarbonCommandException(
               s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property process failed. " +
-                s"Instantiation of class $handlerClassName is failed with $ex")
+                s"Instantiation of class $handlerClassName failed with $ex")
           case ex: ClassCastException =>
             throw new MalformedCarbonCommandException(
               s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property process failed. " +
@@ -429,28 +434,26 @@ abstract class CarbonDDLSqlParser extends AbstractCarbonSparkSQLParser {
           /* Source columns are not allowed to be specified in sort columns. Instead target column
           is implicitly treated as sort column */
           sources.foreach { column =>
-            sortKey.split(",").foreach { key =>
+            sortKey.split(",").map(_.trim).foreach { key =>
               if (key.equalsIgnoreCase(column)) {
                 throw new MalformedCarbonCommandException(
                   s"Carbon ${CarbonCommonConstants.INDEX_HANDLER} property is invalid. " +
                     s"Source column: $key is not allowed in ${CarbonCommonConstants.SORT_COLUMNS}" +
-                    s" property. Instead, handler value: $e is implicitly treated as sort column.")
+                    s" property. Instead, handler: $handler is implicitly treated as sort column.")
               }
             }
           }
-
-          sortKey += "," + e
+          sortKey += "," + handler
         } else {
-          sortKey = e
+          sortKey = handler
         }
         tableProperties.put(CarbonCommonConstants.SORT_COLUMNS, sortKey)
 
         // TODO Need to convert it to DataType object and pass it to StructField dataType
-        val dataType = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + s".$e.datatype")
-        fields += getField(StructField(e, LongType))
+        val dataType = tableProperties.get(TYPE)
+        fields += getField(StructField(handler, LongType))
       }
     }
-
     fields
   }
 
