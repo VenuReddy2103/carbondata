@@ -44,9 +44,9 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
 
   private double userDefineMinLatitude = 0;   // 用户定义地图最小的纬度
 
-  // private double CalculateMaxLongitude = 0;  // 计算后得出的补齐地图最大的经度
+  private double CalculateMaxLongitude = 0;  // 计算后得出的补齐地图最大的经度
 
-  // private double CalculateMaxLatitude = 0;  // 计算后得出的补齐地图最大的纬度
+  private double CalculateMaxLatitude = 0;  // 计算后得出的补齐地图最大的纬度
 
   private int gridSize = 0;  //栅格长度单位是米
 
@@ -199,8 +199,8 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
     double doubleMax = Math.max(Xn, Yn);
     this.cutLevel = doubleMax % 1 == 0 ? (int)doubleMax : (int)(doubleMax + 1);
     // setep 2 根据得到的切分的次数，重新计算区域
-    // this.CalculateMaxLongitude = userDefineMinLongitude + Math.pow(2, this.cutLevel) * deltaX;
-    // this.CalculateMaxLatitude = userDefineMinLatitude + Math.pow(2, this.cutLevel) * deltaY;
+    this.CalculateMaxLongitude = userDefineMinLongitude + Math.pow(2, this.cutLevel) * deltaX;
+    this.CalculateMaxLatitude = userDefineMinLatitude + Math.pow(2, this.cutLevel) * deltaY;
   }
 
   /**
@@ -253,7 +253,6 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
     return index;
   }
 
-
   /**
    * hash ID start at "0", so if the value < 0 then the id should be wrong.
    * @param source Longitude and Latitude
@@ -262,10 +261,9 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
    */
   @Override
   public String generate(List<Long> source) throws Exception {
-    if (source.size() != 2) {
+    if (2 != source.size()) {
       throw new RuntimeException("Source list must be of size 2.");
     }
-    //TODO generate geohashId
     int[] gridPoint = calculateID(source.get(0), source.get(1));
     Long hashId = createHashID(gridPoint[0], gridPoint[1]);
     return String.valueOf(hashId);
@@ -274,8 +272,22 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
   @Override
   public List<Long[]> query(String polygon) throws Exception {
     List<Long[]> rangeList = new ArrayList<Long[]>();
-    //TODO call polygon query and get the ranges
-    rangeList.add(new Long[2]);
+    String[] pointList = polygon.split(";");
+    if (3  <= pointList.length) {
+      List<double[]> queryList = new ArrayList<>();
+      for (String str: pointList) {
+        String[] points = str.split(",");
+        if (2 == points.length) {
+          queryList.add(new double[] {Double.valueOf(points[0]), Double.valueOf(points[1])});
+        }
+      }
+      if (3 <= queryList.size()) {
+        QuadTreeCls qtreee = new QuadTreeCls(userDefineMinLongitude, userDefineMinLatitude,
+            CalculateMaxLongitude, CalculateMaxLatitude, cutLevel);
+        qtreee.insert(queryList);
+        rangeList = qtreee.getNodesData();
+      }
+    }
     return rangeList;
   }
 }
