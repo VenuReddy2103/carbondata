@@ -14,17 +14,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.carbondata.core.util;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
-public interface CustomIndex<SourceElementType, Query, Result> {
-  void validateOption(Map<String, String> properties) throws Exception;
+public interface CustomIndex<SourceElementType, Query, Result> extends Serializable {
+  /**
+   * Initialize the custom index handler instance.
+   * @param handlerName
+   * @param properties
+   * @throws Exception
+   */
+  void init(String handlerName, Map<String, String> properties) throws Exception;
 
-  Long generate(List<SourceElementType> columns) throws Exception;
+  /**
+   * Generates the custom index column value from the given source columns.
+   * @param columns
+   * @return Returns generated column value
+   * @throws Exception
+   */
+  String generate(List<SourceElementType> columns) throws Exception;
 
+  /**
+   * Query processor for custom index handler.
+   * @param query
+   * @return Returns list of ranges to be fetched
+   * @throws Exception
+   */
   Result query(Query query) throws Exception;
-
-  void init(Map<String, String> properties) throws Exception;
 }

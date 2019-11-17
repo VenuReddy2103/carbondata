@@ -17,9 +17,7 @@
 package org.apache.carbondata.processing.loading.parser.impl;
 
 import java.util.ArrayList;
-import java.util.Map;
 
-import org.apache.carbondata.core.constants.CarbonCommonConstants;
 import org.apache.carbondata.processing.loading.CarbonDataLoadConfiguration;
 import org.apache.carbondata.processing.loading.DataField;
 import org.apache.carbondata.processing.loading.constants.DataLoadProcessorConstants;
@@ -35,9 +33,6 @@ public class RowParserImpl implements RowParser {
 
   private int[] inputMapping;
 
-  private Map<String, String> tableProperties;
-  private DataField[] input;
-
   private int numberOfColumns;
 
   public RowParserImpl(DataField[] output, CarbonDataLoadConfiguration configuration) {
@@ -50,9 +45,7 @@ public class RowParserImpl implements RowParser {
     String nullFormat =
         configuration.getDataLoadProperty(DataLoadProcessorConstants.SERIALIZATION_NULL_FORMAT)
             .toString();
-    tableProperties = configuration.getTableSpec().getCarbonTable().getTableInfo()
-            .getFactTable().getTableProperties();
-    input = getInput(configuration);
+    DataField[] input = getInput(configuration);
     genericParsers = new GenericParser[input.length];
     for (int i = 0; i < genericParsers.length; i++) {
       genericParsers[i] =
@@ -76,8 +69,13 @@ public class RowParserImpl implements RowParser {
     DataField[] input = new DataField[fields.length];
     inputMapping = new int[input.length];
     int k = 0;
-    int variableColumnOffset = numberOfColumns - 1;
+    Boolean bNonSchemaPresent = false;
     for (int i = 0; i < fields.length; i++) {
+      if (fields[i].getColumn().getSchemaOrdinal() == -1) {
+        bNonSchemaPresent = true;
+        continue;
+      }
+
       for (int j = 0; j < numberOfColumns; j++) {
         if (header[j].equalsIgnoreCase(fields[i].getColumn().getColName())) {
           input[k] = fields[i];
@@ -86,15 +84,17 @@ public class RowParserImpl implements RowParser {
           break;
         }
       }
+    }
 
-      if (fields[i].getColumn().getSchemaOrdinal() == -1) {
-        String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
-                fields[i].getColumn().getColName() + ".class");
-        if (handler != null) {
-          input[k] = fields[i];
-          inputMapping[k] = variableColumnOffset++;
-          k++;
+    /* If non schema fields are present, keep all of them at the end of input */
+    if (bNonSchemaPresent) {
+      for (int i = 0; i < fields.length; i++) {
+        if (fields[i].getColumn().getSchemaOrdinal() != -1) {
+          continue;
         }
+        input[k] = fields[i];
+        inputMapping[k] = -1;
+        k++;
       }
     }
     return input;
@@ -111,25 +111,15 @@ public class RowParserImpl implements RowParser {
       System.arraycopy(row, 0, temp, 0, row.length);
       row = temp;
     }
-
     Object[] out = new Object[genericParsers.length];
     for (int i = 0; i < genericParsers.length; i++) {
-      Object obj = null;
-      if (input[i].getColumn().getSchemaOrdinal() == -1) {
-        String handler = tableProperties.get(CarbonCommonConstants.INDEX_HANDLER + "." +
-                input[i].getColumn().getColName() + ".class");
-        if (handler != null) {
-          try {
-            // TODO Need to call generate index handler class here and assign it to obj
-            //obj = ((CustomIndex)Class.forName(handler).newInstance()).generate();
-            obj = "0";
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-        }
-      } else {
-        obj = row[inputMapping[i]];
+      if (inputMapping[i] == -1) {
+        /* All the non schema fields are placed at end. And input mapping for them are marked as -1.
+        Can break the loop when inputMapping[i] is -1. */
+        break;
       }
+
+      Object obj = row[inputMapping[i]];
       out[outputMapping[i]] = genericParsers[i].parse(obj);
     }
     return out;
