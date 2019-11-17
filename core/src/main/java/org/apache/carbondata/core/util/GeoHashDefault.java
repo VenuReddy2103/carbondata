@@ -16,6 +16,7 @@
  */
 
 package org.apache.carbondata.core.util;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,9 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
   // 地球半径
   private static final double EARTH_RADIUS = 6371004.0;
 
-  private static double transValue = Math.PI / CONVERT_FACTOR * EARTH_RADIUS; // 赤道经度1度,纬度1度对应地理空间距离
+  private static final String GEOHASH = "geohash";
+  // 赤道经度1度或者纬度1度对应的地理空间距离
+  private static double transValue = Math.PI / CONVERT_FACTOR * EARTH_RADIUS;
 
   // private double oriLongitude = 0;  // 坐标原点的经度
 
@@ -52,13 +55,13 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
 
   private double mCos;               // 坐标原点纬度的余玄数值
 
-  private  double deltaY = 0;        // 每一个gridSize长度对应Y轴的度数
+  private double deltaY = 0;        // 每一个gridSize长度对应Y轴的度数
 
-  private  double deltaX = 0;        // 每一个gridSize长度应X轴的度数
+  private double deltaX = 0;        // 每一个gridSize长度应X轴的度数
 
-  private  double deltaYByRatio = 0; // 每一个gridSize长度对应Y轴的度数 * 系数
+  private double deltaYByRatio = 0; // 每一个gridSize长度对应Y轴的度数 * 系数
 
-  private  double deltaXByRatio = 0; // 每一个gridSize长度应X轴的度数 * 系数
+  private double deltaXByRatio = 0; // 每一个gridSize长度应X轴的度数 * 系数
 
   private int cutLevel = 0;          // 对整个区域切的刀数（一横一竖为1刀），就是四叉树的深度
 
@@ -83,90 +86,124 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
 
   private int conversionRatio = 1;      // 系数，用于将double类型的经纬度，转换成int类型后计算
 
-  public void validateOption(Map<String, String> properties) throws Exception {
-    String option = properties.get(CarbonCommonConstants.INDEX_HANDLER);
-    if (option == null || option.isEmpty()) {
+  /**
+   * Initialize the geohash index handler instance.
+   * @param handlerName
+   * @param properties
+   * @throws Exception
+   */
+  @Override
+  public void init(String handlerName, Map<String, String> properties) throws Exception {
+    String options = properties.get(CarbonCommonConstants.INDEX_HANDLER);
+    if (options == null || options.isEmpty()) {
       throw new MalformedCarbonCommandException(
-           String.format("%s property is invalid.", CarbonCommonConstants.INDEX_HANDLER));
+              String.format("%s property is invalid.", CarbonCommonConstants.INDEX_HANDLER));
+    }
+    options = options.toLowerCase();
+    if (!options.contains(handlerName.toLowerCase())) {
+      throw new MalformedCarbonCommandException(
+              String.format("%s property is invalid. %s is not present.",
+                      CarbonCommonConstants.INDEX_HANDLER, handlerName));
     }
 
-    String commonKey = "." + option + ".";
-    String sourceColumnsOption = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey +
-            "sourcecolumns");
+    String commonKey = CarbonCommonConstants.INDEX_HANDLER + "." + handlerName + ".";
+    String TYPE = commonKey + "type";
+    String SOURCE_COLUMNS = commonKey + "sourcecolumns";
+    String SOURCE_COLUMN_TYPES = commonKey + "sourcecolumntypes";
+    String TARGET_DATA_TYPE = commonKey + "datatype";
+    // String ORIGIN_LONGITUDE = commonKey + "originlongitude";
+    String ORIGIN_LATITUDE = commonKey + "originlatitude";
+    String MIN_LONGITUDE = commonKey + "minlongitude";
+    String MAX_LONGITUDE = commonKey + "maxlongitude";
+    String MIN_LATITUDE = commonKey + "minlatitude";
+    String MAX_LATITUDE = commonKey + "maxlatitude";
+    String GRID_SIZE = commonKey + "gridsize";
+    String CONVERSION_RATIO = commonKey + "conversionratio";
+
+
+    String sourceColumnsOption = properties.get(SOURCE_COLUMNS);
     if (sourceColumnsOption == null) {
       throw new MalformedCarbonCommandException(
-            String.format("%s property is invalid. %s property is not specified.",
-            CarbonCommonConstants.INDEX_HANDLER,
-            CarbonCommonConstants.INDEX_HANDLER + commonKey + "sourcecolumns"));
+              String.format("%s property is invalid. %s property is not specified.",
+                      CarbonCommonConstants.INDEX_HANDLER, SOURCE_COLUMNS));
     }
 
     if (sourceColumnsOption.split(",").length != 2) {
       throw new MalformedCarbonCommandException(
-           String.format("%s property is invalid. %s property must have 2 columns.",
-           CarbonCommonConstants.INDEX_HANDLER,
-           CarbonCommonConstants.INDEX_HANDLER + commonKey + "sourcecolumns"));
+              String.format("%s property is invalid. %s property must have 2 columns.",
+                      CarbonCommonConstants.INDEX_HANDLER, SOURCE_COLUMNS));
     }
 
-    String type = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey + "type");
-    if (type != null && !"geohash".equalsIgnoreCase(type)) {
+    String type = properties.get(TYPE);
+    if (type != null && !GEOHASH.equalsIgnoreCase(type)) {
       throw new MalformedCarbonCommandException(
-            String.format("%s property is invalid. %s property must be geohash for this class",
-            CarbonCommonConstants.INDEX_HANDLER,
-            CarbonCommonConstants.INDEX_HANDLER + commonKey + "type"));
+              String.format("%s property is invalid. %s property must be %s for this class.",
+                      CarbonCommonConstants.INDEX_HANDLER, TYPE, GEOHASH));
     }
 
-    properties.put(CarbonCommonConstants.INDEX_HANDLER + commonKey + "type", "geohash");
+    properties.put(TYPE, GEOHASH);
 
-    String sourceDataTypes = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey +
-            "sourcecolumntypes");
+    String sourceDataTypes = properties.get(SOURCE_COLUMN_TYPES);
     String[] srcTypes = sourceDataTypes.split(",");
     for (String srcdataType : srcTypes) {
-      if (!"int".equalsIgnoreCase(srcdataType)) {
+      if (!"bigint".equalsIgnoreCase(srcdataType)) {
         throw new MalformedCarbonCommandException(
-           String.format("%s property is invalid. source columns datatype must be int",
-           CarbonCommonConstants.INDEX_HANDLER));
+                String.format("%s property is invalid. %s datatypes must be long.",
+                        CarbonCommonConstants.INDEX_HANDLER, SOURCE_COLUMNS));
       }
     }
 
-    String dataType = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey + "datatype");
+    String dataType = properties.get(TARGET_DATA_TYPE);
     if (dataType != null && !"long".equalsIgnoreCase(dataType)) {
       throw new MalformedCarbonCommandException(
-          String.format("%s property is invalid. %s property must be long for this class",
-          CarbonCommonConstants.INDEX_HANDLER,
-          CarbonCommonConstants.INDEX_HANDLER + commonKey + "datatype"));
+              String.format("%s property is invalid. %s property must be long for this class.",
+                      CarbonCommonConstants.INDEX_HANDLER, TARGET_DATA_TYPE));
     }
 
-    /* set the generated column data type as long */
-    properties.put(CarbonCommonConstants.INDEX_HANDLER + commonKey + "datatype", "long");
-  }
+    /* Set the generated column data type as long */
+    properties.put(TARGET_DATA_TYPE, "long");
 
-  @Override
-  public void init(String handlerName, Map<String, String> properties) throws Exception {
-    validateOption(properties);
-    String option = properties.get(CarbonCommonConstants.INDEX_HANDLER);
-    String commonKey = "." + option + ".";
-    // String oriLongitude = properties.get(CarbonCommonConstants.INDEX_HANDLER +
-    // commonKey + "oriLongitude");
-    String oriLatitude = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey
-            + "oriLatitude");
-    String userDefineMaxLongitude = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey
-            + "userDefineMaxLongitude");
-    String userDefineMaxLatitude = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey
-            + "userDefineMaxLatitude");
-    String userDefineMinLongitude = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey
-            + "userDefineMinLongitude");
-    String userDefineMinLatitude = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey
-            + "userDefineMinLatitude");
-    String gridSize = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey + "gridSize");
-    String conversionRatio = properties.get(CarbonCommonConstants.INDEX_HANDLER + commonKey
-            + "conversionRatio");
+    // String originLongitude = properties.get(ORIGIN_LONGITUDE);
+    String originLatitude = properties.get(ORIGIN_LATITUDE);
+    if (originLatitude == null) {
+      throw new MalformedCarbonCommandException(
+              String.format("%s property is invalid. Must specify %s property.",
+                      CarbonCommonConstants.INDEX_HANDLER, ORIGIN_LATITUDE));
+    }
 
-    // this.oriLongitude = Double.valueOf(oriLongitude);
-    this.oriLatitude = Double.valueOf(oriLatitude);
-    this.userDefineMaxLongitude = Double.valueOf(userDefineMaxLongitude);
-    this.userDefineMaxLatitude = Double.valueOf(userDefineMaxLatitude);
-    this.userDefineMinLongitude = Double.valueOf(userDefineMinLongitude);
-    this.userDefineMinLatitude = Double.valueOf(userDefineMinLatitude);
+    String minLongitude = properties.get(MIN_LONGITUDE);
+    String maxLongitude = properties.get(MAX_LONGITUDE);
+    String minLatitude = properties.get(MIN_LATITUDE);
+    String maxLatitude = properties.get(MAX_LATITUDE);
+    if (minLongitude == null || maxLongitude == null
+            || minLatitude == null || maxLatitude == null) {
+      throw new MalformedCarbonCommandException(
+              String.format("%s property is invalid. Must specify %s, %s, %s and %s properties.",
+                      CarbonCommonConstants.INDEX_HANDLER, MIN_LONGITUDE, MAX_LONGITUDE,
+                      MIN_LATITUDE, MAX_LATITUDE));
+    }
+
+    String gridSize = properties.get(GRID_SIZE);
+    if (gridSize == null) {
+      throw new MalformedCarbonCommandException(
+              String.format("%s property is invalid. %s property must be specified.",
+                      CarbonCommonConstants.INDEX_HANDLER, GRID_SIZE));
+    }
+
+    String conversionRatio = properties.get(CONVERSION_RATIO);
+    if (conversionRatio == null) {
+      throw new MalformedCarbonCommandException(
+              String.format("%s property is invalid. %s property must be specified.",
+                      CarbonCommonConstants.INDEX_HANDLER, CONVERSION_RATIO));
+    }
+
+    /* Fill the values */
+    // this.oriLongitude = Double.valueOf(originLongitude);
+    this.oriLatitude = Double.valueOf(originLatitude);
+    this.userDefineMaxLongitude = Double.valueOf(maxLongitude);
+    this.userDefineMaxLatitude = Double.valueOf(maxLatitude);
+    this.userDefineMinLongitude = Double.valueOf(minLongitude);
+    this.userDefineMinLatitude = Double.valueOf(minLatitude);
     this.gridSize = Integer.parseInt(gridSize);
     this.conversionRatio = Integer.parseInt(conversionRatio);
 
@@ -269,6 +306,12 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
     return String.valueOf(hashId);
   }
 
+  /**
+   * Query processor for custom index handler.
+   * @param polygon
+   * @return Returns list of ranges to be fetched
+   * @throws Exception
+   */
   @Override
   public List<Long[]> query(String polygon) throws Exception {
     List<Long[]> rangeList = new ArrayList<Long[]>();

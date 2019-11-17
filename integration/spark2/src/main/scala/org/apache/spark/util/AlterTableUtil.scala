@@ -434,7 +434,8 @@ object AlterTableUtil {
       validateRangeColumnProperties(carbonTable, lowerCasePropertiesMap)
 
       // validate the Sort Scope and Sort Columns
-      validateSortScopeAndSortColumnsProperties(carbonTable, lowerCasePropertiesMap)
+      validateSortScopeAndSortColumnsProperties(carbonTable, lowerCasePropertiesMap,
+        tblPropertiesMap)
       // if SORT_COLUMN is changed, it will move them to the head of column list
       updateSchemaForSortColumns(thriftTable, lowerCasePropertiesMap, schemaConverter)
       // below map will be used for cache invalidation. As tblProperties map is getting modified
@@ -622,9 +623,23 @@ object AlterTableUtil {
   }
 
   def validateSortScopeAndSortColumnsProperties(carbonTable: CarbonTable,
-      propertiesMap: mutable.Map[String, String]): Unit = {
+                                                propertiesMap: mutable.Map[String, String],
+                                                tblPropertiesMap: mutable.Map[String, String]
+                                               ): Unit = {
     CommonUtil.validateSortScope(propertiesMap)
     CommonUtil.validateSortColumns(carbonTable, propertiesMap)
+
+    /* Index property columns are implicitly considered as sort columns */
+    val indexProp = tblPropertiesMap.get(CarbonCommonConstants.INDEX_HANDLER)
+    if (indexProp.isDefined) {
+      val sortColumns = propertiesMap.get(CarbonCommonConstants.SORT_COLUMNS) match {
+        case Some(columns) if !columns.trim.isEmpty => columns + "," + indexProp.get.trim
+        case _ => indexProp.get.trim
+      }
+
+      propertiesMap.put(CarbonCommonConstants.SORT_COLUMNS, sortColumns)
+    }
+
     // match SORT_SCOPE and SORT_COLUMNS
     val newSortScope = propertiesMap.get(CarbonCommonConstants.SORT_SCOPE)
     val newSortColumns = propertiesMap.get(CarbonCommonConstants.SORT_COLUMNS)
@@ -940,10 +955,10 @@ object AlterTableUtil {
     val properties = carbonTable.getTableInfo.getFactTable.getTableProperties.asScala
     val indexProperty = properties.get(CarbonCommonConstants.INDEX_HANDLER)
     if (indexProperty.isDefined) {
-      indexProperty.get.split(",") foreach { element =>
+      indexProperty.get.split(",").map(_.trim).foreach { element =>
         val srcColumns
         = properties.get(CarbonCommonConstants.INDEX_HANDLER + s".$element.sourcecolumns")
-        val common = alterColumns.intersect(srcColumns.get.split(","))
+        val common = alterColumns.intersect(srcColumns.get.split(",").map(_.trim))
         if (common.nonEmpty) {
           throw new MalformedCarbonCommandException(s"Columns present in " +
             s"${CarbonCommonConstants.INDEX_HANDLER} table property cannot be altered.")
