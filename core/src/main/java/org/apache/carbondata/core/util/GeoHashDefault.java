@@ -83,8 +83,6 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
 
   private int conversionRatio = 1;      // 系数，用于将double类型的经纬度，转换成int类型后计算
 
-
-  @Override
   public void validateOption(Map<String, String> properties) throws Exception {
     String option = properties.get(CarbonCommonConstants.INDEX_HANDLER);
     if (option == null || option.isEmpty()) {
@@ -143,7 +141,8 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
   }
 
   @Override
-  public void init(Map<String, String> properties) throws Exception {
+  public void init(String handlerName, Map<String, String> properties) throws Exception {
+    validateOption(properties);
     String option = properties.get(CarbonCommonConstants.INDEX_HANDLER);
     String commonKey = "." + option + ".";
     // String oriLongitude = properties.get(CarbonCommonConstants.INDEX_HANDLER +
@@ -262,14 +261,14 @@ public class GeoHashDefault implements CustomIndex<Long, String, List<Long[]>> {
    * @throws Exception
    */
   @Override
-  public Long generate(List<Long> source) throws Exception {
+  public String generate(List<Long> source) throws Exception {
     if (source.size() != 2) {
       throw new RuntimeException("Source list must be of size 2.");
     }
     //TODO generate geohashId
     int[] gridPoint = calculateID(source.get(0), source.get(1));
     Long hashId = createHashID(gridPoint[0], gridPoint[1]);
-    return hashId;
+    return String.valueOf(hashId);
   }
 
   @Override
