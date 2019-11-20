@@ -19,6 +19,7 @@ package org.apache.carbondata.processing.loading.converter.impl;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -29,12 +30,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.carbondata.common.logging.LogServiceFactory;
+import org.apache.carbondata.core.constants.CarbonCommonConstants;
 import org.apache.carbondata.core.constants.CarbonLoadOptionConstants;
 import org.apache.carbondata.core.datastore.row.CarbonRow;
 import org.apache.carbondata.core.dictionary.client.DictionaryClient;
 import org.apache.carbondata.core.dictionary.service.DictionaryOnePassService;
 import org.apache.carbondata.core.util.CarbonThreadFactory;
 import org.apache.carbondata.core.util.CarbonTimeStatisticsFactory;
+import org.apache.carbondata.core.util.CustomIndex;
 import org.apache.carbondata.processing.loading.BadRecordsLogger;
 import org.apache.carbondata.processing.loading.CarbonDataLoadConfiguration;
 import org.apache.carbondata.processing.loading.DataField;
@@ -71,6 +74,8 @@ public class RowConverterImpl implements RowConverter {
   private ExecutorService executorService;
 
   private Map<Object, Integer>[] localCaches;
+
+  private Map<String, CustomIndex> customHandlers = new HashMap<>();
 
   private boolean isConvertToBinary;
 
@@ -162,28 +167,94 @@ public class RowConverterImpl implements RowConverter {
     return null;
   }
 
+  private int getDataFieldIndexByName(String column) {
+    for (int i = 0; i < fields.length; i++) {
+      if (fields[i].getColumn().getColName().equalsIgnoreCase(column)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private String generateNonSchemaColumnValue(DataField field, CarbonRow row) {
+    Map<String, String> properties = configuration.getTableSpec().getCarbonTable()
+            .getTableInfo().getFactTable().getTableProperties();
+    String handler = properties.get(CarbonCommonConstants.INDEX_HANDLER);
+    if (handler != null) {
+      try {
+        CustomIndex instance = customHandlers.get(field.getColumn().getColName());
+        if (instance == null) {
+          instance = CustomIndex.getCustomInstance(
+              properties.get(CarbonCommonConstants.INDEX_HANDLER +
+                  "." + field.getColumn().getColName() + ".instance"));
+          customHandlers.put(field.getColumn().getColName(), instance);
+        }
+        String sourceColumns = properties.get(CarbonCommonConstants.INDEX_HANDLER
+                + "." + field.getColumn().getColName() + ".sourcecolumns");
+        assert (sourceColumns != null);
+        String[] sources = sourceColumns.split(",");
+        int srcFieldIndex;
+        List<Object> sourceValues = new ArrayList<Object>();
+        for (String source : sources) {
+          srcFieldIndex = getDataFieldIndexByName(source);
+          assert (srcFieldIndex != -1);
+          sourceValues.add(row.getData()[srcFieldIndex]);
+        }
+        return instance.generate(sourceValues);
+      } catch (Exception e) {
+        LOGGER.error("Failed to generate column value while processing index_handler property."
+                + e);
+        throw new RuntimeException(e);
+      }
+    }
+    return null;
+  }
+
   @Override
   public CarbonRow convert(CarbonRow row) throws CarbonDataLoadingException {
     logHolder.setLogged(false);
     logHolder.clear();
-    for (int i = 0; i < fieldConverters.length; i++) {
-      fieldConverters[i].convert(row, logHolder);
-      if (!logHolder.isLogged() && logHolder.isBadRecordNotAdded()) {
-        badRecordLogger.addBadRecordsToBuilder(row.getRawData(), logHolder.getReason());
-        if (badRecordLogger.isDataLoadFail()) {
-          String error = "Data load failed due to bad record: " + logHolder.getReason();
-          if (!badRecordLogger.isBadRecordLoggerEnable()) {
-            error += "Please enable bad record logger to know the detail reason.";
+    int loopCount = 0;
+    Boolean isNonSchemaPresent = false;
+    // If non schema fields are present, need to generate the value for them and convert.
+    // Non schema columns are processed in the second iteration. Because, generation of non schema
+    // column value depend on the other schema column values. And schema column values are converted
+    // from string to respective data types only in the first iteration.
+    do {
+      for (int i = 0; i < fieldConverters.length; i++) {
+        if (loopCount == 0) {
+          if ((fields[i].getColumn().getSchemaOrdinal() == -1)
+              || configuration.isCovertOnlyIndexColumns()) {
+            // Skip the non schema fields in the first iteration
+            isNonSchemaPresent = true;
+            continue;
           }
-          throw new BadRecordFoundException(error);
+        } else {
+          if (fields[i].getColumn().getSchemaOrdinal() != -1) {
+            // Skip the schema fields in the second iteration
+            continue;
+          }
+          // Generate the column value
+          row.update(generateNonSchemaColumnValue(fields[i], row), i);
         }
-        logHolder.clear();
-        logHolder.setLogged(true);
-        if (badRecordLogger.isBadRecordConvertNullDisable()) {
-          return null;
+        fieldConverters[i].convert(row, logHolder);
+        if (!logHolder.isLogged() && logHolder.isBadRecordNotAdded()) {
+          badRecordLogger.addBadRecordsToBuilder(row.getRawData(), logHolder.getReason());
+          if (badRecordLogger.isDataLoadFail()) {
+            String error = "Data load failed due to bad record: " + logHolder.getReason();
+            if (!badRecordLogger.isBadRecordLoggerEnable()) {
+              error += "Please enable bad record logger to know the detail reason.";
+            }
+            throw new BadRecordFoundException(error);
+          }
+          logHolder.clear();
+          logHolder.setLogged(true);
+          if (badRecordLogger.isBadRecordConvertNullDisable()) {
+            return null;
+          }
         }
       }
-    }
+    } while (isNonSchemaPresent && (++loopCount < 2));
     // rawData will not be required after this so reset the entry to null.
     row.setRawData(null);
     return row;

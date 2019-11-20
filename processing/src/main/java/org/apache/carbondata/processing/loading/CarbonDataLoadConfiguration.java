@@ -129,6 +129,13 @@ public class CarbonDataLoadConfiguration {
 
   private int numberOfLoadingCores;
 
+  /**
+   * Whether to convert only index columns. This flag should be set only when all the schema
+   * columns are already converted in previous row converter step and just need to generate and
+   * convert index columns in this converter setp.
+   */
+  private boolean isCovertOnlyIndexColumns;
+
   public CarbonDataLoadConfiguration() {
   }
 
@@ -451,5 +458,13 @@ public class CarbonDataLoadConfiguration {
 
   public void setSegmentPath(String segmentPath) {
     this.segmentPath = segmentPath;
+  }
+
+  public boolean isCovertOnlyIndexColumns() {
+    return isCovertOnlyIndexColumns;
+  }
+
+  public void setCovertOnlyIndexColumns(boolean covertOnlyIndexColumns) {
+    isCovertOnlyIndexColumns = covertOnlyIndexColumns;
   }
 }

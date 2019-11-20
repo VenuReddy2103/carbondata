@@ -58,6 +58,7 @@ import org.apache.carbondata.core.profiler.ExplainCollector;
 import org.apache.carbondata.core.readcommitter.ReadCommittedScope;
 import org.apache.carbondata.core.scan.expression.Expression;
 import org.apache.carbondata.core.scan.filter.FilterUtil;
+import org.apache.carbondata.core.scan.filter.intf.ExpressionType;
 import org.apache.carbondata.core.scan.filter.resolver.FilterResolverIntf;
 import org.apache.carbondata.core.scan.model.QueryModel;
 import org.apache.carbondata.core.scan.model.QueryModelBuilder;
@@ -580,7 +581,11 @@ m filterExpression
     LOG.info("Started block pruning ...");
     boolean isDistributedPruningEnabled = CarbonProperties.getInstance()
         .isDistributedPruningEnabled(carbonTable.getDatabaseName(), carbonTable.getTableName());
-    if (isDistributedPruningEnabled) {
+    if (filter.isEmpty() && filter.getExpression() != null &&
+            filter.getExpression().getFilterExpressionType() == ExpressionType.POLYGON) {
+      // No ranges to filter. Nothing to prune.
+      return new ArrayList<ExtendedBlocklet>();
+    } else if (isDistributedPruningEnabled) {
       try {
         prunedBlocklets =
             getDistributedSplit(carbonTable, filter.getResolver(), partitionsToPrune, segmentIds,

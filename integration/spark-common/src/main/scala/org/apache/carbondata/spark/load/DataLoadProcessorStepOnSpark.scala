@@ -179,6 +179,13 @@ object DataLoadProcessorStepOnSpark {
           row = new CarbonRow(rowParser.parseRow(rows.next()))
         }
         row = rowConverter.convert(row)
+        if (row != null) {
+          val schemaColumnValues = row.getData.zipWithIndex.collect {
+            case (data, index) if conf.getDataFields()(index).getColumn.getSchemaOrdinal != -1 =>
+              data
+          }
+          row.setData(schemaColumnValues)
+        }
         rowCounter.add(1)
         row
       }

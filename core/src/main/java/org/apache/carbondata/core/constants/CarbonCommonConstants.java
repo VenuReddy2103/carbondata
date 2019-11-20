@@ -434,6 +434,16 @@ public final class CarbonCommonConstants {
   public static final String INDEX_COLUMNS = "INDEX_COLUMNS";
 
   /**
+   * Index handler table property. It allows user to create a new sort column from the set of
+   * existing schema columns. And can generate value for the new column after parsing each row
+   * through custom handler.
+   */
+  public static final String INDEX_HANDLER = "index_handler";
+
+  // GeoHash index handler type
+  public static final String GEOHASH = "geohash";
+
+  /**
    * key for dictionary path
    */
   public static final String DICTIONARY_PATH = "dictionary_path";

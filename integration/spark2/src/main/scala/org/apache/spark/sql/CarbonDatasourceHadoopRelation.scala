@@ -75,7 +75,7 @@ case class CarbonDatasourceHadoopRelation(
       filters: Array[Filter],
       partitions: Seq[PartitionSpec]): RDD[InternalRow] = {
     val filterExpression: Option[Expression] = filters.flatMap { filter =>
-      CarbonFilters.createCarbonFilter(schema, filter)
+      CarbonFilters.createCarbonFilter(schema, filter, carbonTable)
     }.reduceOption(new AndExpression(_, _))
 
     val projection = new CarbonProjection

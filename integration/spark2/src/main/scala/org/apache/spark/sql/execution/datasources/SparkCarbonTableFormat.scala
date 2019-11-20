@@ -121,6 +121,19 @@ with Serializable {
     if (staticPartition != null) {
       conf.set("carbon.staticpartition", staticPartition)
     }
+    // If index handler property is configured, do not skip the converter step. Non-schema columns
+    // are generated and converted in converter step.
+    val handler =
+      table.getTableInfo.getFactTable.getTableProperties.get(CarbonCommonConstants.INDEX_HANDLER)
+    if (handler != null) {
+      val sortScope = optionsFinal.get("sort_scope")
+      if (sortScope.equalsIgnoreCase(CarbonCommonConstants.LOAD_SORT_SCOPE_DEFAULT)) {
+        // non-schema column must be sorted
+        optionsFinal.put("sort_scope", "LOCAL_SORT")
+      }
+      model.setLoadWithoutConverterStep(false)
+      model.setIndexColumnsPresent(true);
+    }
     // In case of update query there is chance to remove the older segments, so here we can set
     // the to be deleted segments to mark as delete while updating tablestatus
     val segemntsTobeDeleted = options.get("segmentsToBeDeleted")

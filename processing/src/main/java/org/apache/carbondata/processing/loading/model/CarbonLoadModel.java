@@ -213,6 +213,13 @@ public class CarbonLoadModel implements Serializable {
   private boolean isLoadWithoutConverterStep;
 
   /**
+   * Whether index columns are present. This flag should be set only when all the schema
+   * columns are already converted in previous row converter step and just need to generate and
+   * convert index columns in the next converter step.
+   */
+  private boolean isIndexColumnsPresent;
+
+  /**
    * To identify the suitable input processor step for json file loading.
    */
   private boolean isJsonFileLoad;
@@ -998,5 +1005,13 @@ public class CarbonLoadModel implements Serializable {
 
   public int getScaleFactor() {
     return scaleFactor;
+  }
+
+  public boolean isIndexColumnsPresent() {
+    return isIndexColumnsPresent;
+  }
+
+  public void setIndexColumnsPresent(boolean indexColumnsPresent) {
+    isIndexColumnsPresent = indexColumnsPresent;
   }
 }

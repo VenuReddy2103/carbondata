@@ -379,7 +379,9 @@ public final class CarbonDataProcessorUtil {
     List<CarbonDimension> dimensions =
         schema.getCarbonTable().getVisibleDimensions();
     for (CarbonDimension dimension : dimensions) {
-      columnNames.add(dimension.getColName());
+      if (dimension.getSchemaOrdinal() != -1) {
+        columnNames.add(dimension.getColName());
+      }
     }
     List<CarbonMeasure> measures = schema.getCarbonTable().getVisibleMeasures();
     for (CarbonMeasure msr : measures) {
