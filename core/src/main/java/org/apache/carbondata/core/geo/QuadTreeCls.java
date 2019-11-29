@@ -26,16 +26,16 @@ import java.util.List;
 import org.locationtech.jts.geom.*;
 
 /**
- * 空间区域函数处理相关类
+ * Spatial region function processing related classes
  */
 class GeometryOperation {
   private static final GeometryFactory geoFactory = new GeometryFactory();
 
   /**
-   * 将点对象转换成geo 中的polygon对象
+   * Convert point object to polygon object in Geo
    *
-   * @param polygon 以列表形式存储的区域坐标
-   * @return JTS 中的多边形对象
+   * @param polygon Area coordinates stored as a list
+   * @return JTS Polygon objects
    */
   public static Polygon getPolygonByPoinitList(List<Point2D.Double> polygon) {
     int size = polygon.size();
@@ -52,9 +52,9 @@ class GeometryOperation {
   }
 
   /**
-   * 将点对象转换成geo 中的polygon对象
-   * @param polygon 以列表形式存储的区域坐标
-   * @return JTS 中的多边形对象
+   * Convert point object to polygon object in Geo
+   * @param polygon Area coordinates stored as a list
+   * @return JTS Polygon objects
    */
   public static Polygon getPolygonByDoubleList(List<double[]> polygon) {
     int size = polygon.size();
@@ -73,9 +73,9 @@ class GeometryOperation {
   }
 
   /**
-   * 将点对象转换成geo 中的Point对象
-   * @param pointB Point2D 点对象
-   * @return JTS 中的点对象
+   * Converting point objects to point objects in Geo
+   * @param pointB Point2D Point object
+   * @return JTS Point object
    */
   public static Point getPointByPoint2D(Point2D.Double pointB) {
     Coordinate point = new Coordinate(pointB.x, pointB.y);
@@ -84,10 +84,10 @@ class GeometryOperation {
 
 
   /**
-   * 相离 A 与 B 不相交, A,B 都是多边形
-   * @param polygonA 多边形
-   * @param polygonB 多边形
-   * @return true 多边形相离，false 多边形不相离
+   * Apart a and B do not intersect, a and B are polygons
+   * @param polygonA polygon
+   * @param polygonB polygon
+   * @return true Polygons apart，false Polygons are inseparable
    */
   public static boolean disjoint(Geometry polygonA, List<Point2D.Double> polygonB) {
     Polygon polyB = getPolygonByPoinitList(polygonB);
@@ -96,10 +96,10 @@ class GeometryOperation {
   }
 
   /**
-   * 相离 A 与 B 不相交, A 是多边形,B是一个点
-   * @param polygonA 多边形
-   * @param pointB 一个点
-   * @return true 点与多边形相离，false 点与多边形不相离
+   * A and B do not intersect each other, A is a polygon, B is a point
+   * @param polygonA polygon
+   * @param pointB point
+   * @return true Point away from polygon，false Points are inseparable from polygons
    */
   public static boolean disjoint(Geometry polygonA, Point2D.Double pointB) {
     Point pointGeo = getPointByPoint2D(pointB);
@@ -108,10 +108,11 @@ class GeometryOperation {
   }
 
   /**
-   * 包含 - A contains B 比较多边形A是否包含多边形B
-   * @param polygonA  多边形
-   * @param polygonB  多边形
-   * @return 0 多边形A包含多边形B(A=B或者A>B), -1 多边形A不包含多边形B
+   * contains - A contains B Compare polygon a with polygon B
+   * @param polygonA  polygon
+   * @param polygonB  polygon
+   * @return 0 Polygon a contains polygon B (a = B or a > b),
+   *        -1 Polygon a does not contain polygon B
    */
   public static boolean contains(Geometry polygonA, List<Point2D.Double> polygonB) {
     Polygon polyB = getPolygonByPoinitList(polygonB);
@@ -120,10 +121,10 @@ class GeometryOperation {
 
 
   /**
-   * 包含 - A contains B 比较多边形A是否包含B
-   * @param polygonA  多边形
-   * @param pointB   点
-   * @return true 多边形A包含点B(B在A), false 多边形A不包含点B
+   * contains - A contains B Compare whether polygon a contains B
+   * @param polygonA  polygon
+   * @param pointB   point
+   * @return true Polygon a contains point B (B in a), false Polygon a does not contain point B
    */
   public static boolean contains(Geometry polygonA, Point2D.Double pointB) {
     Point pointGeo = getPointByPoint2D(pointB);
@@ -131,12 +132,11 @@ class GeometryOperation {
     return result;
   }
 
-  // 相交
   /**
-   * 相交 - A intersects B 表示多边形A与多边形B相交
-   * @param polygonA 多边形
-   * @param polygonB 多边形
-   * @return true 多边形A与多边形B相交,false 多边形A与多边形B不相交
+   * intersect - A intersects B Indicates that polygon a intersects polygon B
+   * @param polygonA polygon
+   * @param polygonB polygon
+   * @return true Polygon a intersects polygon B,false Polygon a does not intersect polygon B
    */
   public static boolean intersects(Geometry polygonA, List<Point2D.Double> polygonB) {
     Polygon polyB = getPolygonByPoinitList(polygonB);
@@ -145,10 +145,10 @@ class GeometryOperation {
   }
 
   /**
-   * 相交 - A intersects B 表示多边形A与点B相交
-   * @param polygonA 多边形
-   * @param pointB 点
-   * @return true 多边形A与点B相交,false 多边形A与点B不相交
+   * intersect - A intersects B Represents the intersection of polygon A and point B
+   * @param polygonA polygon
+   * @param pointB point
+   * @return true Polygon a intersects point B,false Polygon a does not intersect point B
    */
   public static boolean intersects(Geometry polygonA, Point2D.Double pointB) {
     Point pointGeo = getPointByPoint2D(pointB);
@@ -159,7 +159,7 @@ class GeometryOperation {
 
 
 /**
- * 多边形区域对象
+ * Polygon region object
  */
 class QuadRect {
   public Double left = 0.0;
@@ -167,9 +167,9 @@ class QuadRect {
   public Double right = 0.0;
   public Double bottom = 0.0;
   /**
-   * 构造区域
-   * @param topleft 左上点
-   * @param bottomRight 右下点
+   * build func
+   * @param topleft Left upper point
+   * @param bottomRight Right lower point
    */
   public QuadRect(Point2D.Double topleft, Point2D.Double bottomRight) {
     this.left = topleft.x;
@@ -179,11 +179,11 @@ class QuadRect {
   }
 
   /**
-   * 构造区域
-   * @param x 最左的坐标
-   * @param y 最下的坐标
-   * @param x2 最右的坐标
-   * @param y2 最上的坐标
+   * build func
+   * @param x Leftmost coordinates
+   * @param y Bottom coordinate
+   * @param x2 Rightmost coordinate
+   * @param y2 Top coordinate
    */
   public QuadRect(double x, double y, double x2, double y2) {
     this.left = x;
@@ -193,9 +193,10 @@ class QuadRect {
   }
 
   /**
-   * 给定区域在当前节点区域以外
-   * @param polygonRect 给定区域的外接矩形,如果比跟节点坐标大,则表示在整个区域外.
-   * @return true 给定区域在该点以外,false给定区域在该点区域之内
+   * The given area is outside the current node area
+   * @param polygonRect If the circumscribed rectangle of a given region is larger than
+   *                    the coordinate with the node, it means it is outside the whole region
+   * @return true The given area is outside the point,false The given area is within the point area
    */
   public boolean outsideBox(QuadRect polygonRect) {
     return polygonRect.left < this.left || polygonRect.right > this.right ||
@@ -204,7 +205,9 @@ class QuadRect {
   }
 
   /**
-   * 获取这个区域的Polygon列表,点是栅格区域中心点的内接中心点矩形,如果是最小栅格,则是外围点的坐标
+   * Get the polygon list of this area. The point is the rectangle of the inner center point of
+   * the grid area center point. If it is the smallest grid, it is the coordinate of the
+   * peripheral point
    * @return 矩形区域的顶点列表
    */
   public List<Point2D.Double> getPolygonPointList() {
@@ -221,8 +224,8 @@ class QuadRect {
   }
 
   /**
-   * 获取区域的中心点坐标
-   * @return 中心点坐标
+   * Get the coordinates of the center point of the area
+   * @return Center point coordinates
    */
   public Double[] getMidelePoint() {
     double x = left + (right - left) / 2;
@@ -231,8 +234,8 @@ class QuadRect {
   }
 
   /**
-   * 获取栅格的中心点
-   * @return 该栅格表示区域的中心点
+   * Get the center point of the grid
+   * @return This grid represents the center point of the area
    */
   public Point2D.Double getMiddlePoint() {
     Double [] mPoint = getMidelePoint();
@@ -240,14 +243,16 @@ class QuadRect {
   }
 
   /**
-   * 从一个区域拆分成四个区域,减少对象的创建,直接返回区域两个坐标
-   * @return 返回切成四个区域的9个点的坐标，返回的点的顺序是，左上，中上，右上；左中，中，右中，左下，中下，右下
+   * Split a region into four regions, reduce the creation of objects, and directly return
+   * two coordinates of the region
+   * @return Returns the coordinates of nine points cut into four areas, in the order of top left,
+   * top middle, top right; middle left, middle right, bottom left, bottom middle, bottom right
    *
    */
   public List<Point2D.Double> getSplitRect() {
     Double [] mPoint = getMidelePoint();
-    // 再获取剩余的四个点，加上边界的四个点，就构成四个区域了。
-    //一个区域由9个点切分成4个子区域
+    // The four remaining points, plus the four points of the boundary, constitute four regions
+    // A region is divided into 4 sub regions by 9 points
     double middleTopX = mPoint[0];
     double middleTopY = this.top;
     Point2D.Double middleTop = new Point2D.Double(middleTopX, middleTopY);
@@ -288,29 +293,29 @@ class QuadRect {
 
 
 /**
- * 存储栅格数据
+ * Store grid data
  */
 class GridData {
   public static final int STATUS_CONTAIN = 0;  // contains sub nodes in the polygon.
   public static final int STATUS_ALL = 1;  // all children are in the polygon.
   public static final int STATUS_DISJOIN = 2;  // contains sub nodes in the polygon.
 
-  public int startRow = 0;  // 开始的行数
-  public int endRow   = 0;  // 结束的行数
-  public int startColumn = 0; // 开始的列数
-  public int endColumn = 0;   // 结束的列数
-  private long startHash = 0L; // 开始的hash
-  private long endHash = 0L;   // 结束的hash
+  public int startRow = 0;  // Number of lines started
+  public int endRow   = 0;  // Number of lines ended
+  public int startColumn = 0; // Number of columns started
+  public int endColumn = 0;   // Number of columns ended
+  private long startHash = 0L; // Start hash
+  private long endHash = 0L;   // End hash
   private int maxDepth = 0;
-  private int status = STATUS_DISJOIN;  // 表示相离
+  private int status = STATUS_DISJOIN;  // Expressing separation
 
   /**
-   * 构造栅格区域数据,data域
+   * Construct grid area and data
    * @param rs startRow
    * @param re endRow
    * @param cs startColumn
    * @param ce endColumn
-   * @param maxDepth 最大递归深度
+   * @param maxDepth Maximum recursion depth
    */
   public GridData(int rs, int re, int cs, int ce, int maxDepth) {
     this.startRow = rs;
@@ -333,7 +338,7 @@ class GridData {
   }
 
   /**
-   * 构造hashID的范围,构造一个开始一个结束范围
+   * Construct the range of hashid, construct a start and end range
    */
   private void computeHashidRange() {
     startHash = createHashID(startRow, startColumn);
@@ -341,10 +346,11 @@ class GridData {
   }
 
   /**
-   * 由栅格的坐标计算出对应的hashID数值
-   * @param row 栅格化后的行index
-   * @param column 栅格化后的列index
-   * @return 具体的栅格的hash数值, 实际时,i,j与经纬度有关系,最终要带入经纬度数据的hash数值.
+   * Calculate the corresponding hashid value from the grid coordinates
+   * @param row Gridded row index
+   * @param column Gridded column index
+   * @return In practice, I and j are related to longitude and latitude,
+   * and finally the hash value of longitude and latitude data should be brought in
    */
   public long createHashID(int row, int column) {
     long index = 0L;
@@ -357,24 +363,24 @@ class GridData {
   }
 
   /**
-   * 设置网格的状态
-   * @param status  允许输入的范围是 STATUS_CONTAIN STATUS_ALL
+   * Set the state of the grid
+   * @param status  The allowed input range is STATUS_CONTAIN STATUS_ALL
    */
   public void setStatus(int status) {
     this.status = status;
   }
 
   /**
-   * 获取栅格状态
-   * @return 栅格状态
+   * Get grid status
+   * @return grid state
    */
   public int getStatus() {
     return this.status;
   }
 
   /**
-   * 获取栅格对应的ID范围
-   * @return 开始ID，结束ID
+   * Get ID range of grid
+   * @return Start ID, end ID
    */
   public Long[] getHashIDRange() {
     return new Long[] {startHash, endHash};
@@ -382,21 +388,26 @@ class GridData {
 }
 
 /**
- * 四叉树的节点
+ * Nodes of quad tree
  */
 class QuadNode {
-  private QuadRect rect;   // 四叉树表示的区域 hashID的范围z order是一个连续的范围
-  private GridData grid; // 网格数据,实际代表hashID
-  private int currentDepth; // 当前数的深度 深度默认从1开始 每一层 4^n 个节点
-  private int maxDepth; // 最大深度
-  // private long[] rangeHashID; // hashID范围，0最小，1最大
+  // The range Z order of region hashid represented by quadtree is a continuous range
+  private QuadRect rect;
+  // Grid data, actually representing hashid
+  private GridData grid;
+  // The depth of the current number defaults to 4 ^ n nodes per layer starting from 1
+  private int currentDepth;
+  // Maximum depth
+  private int maxDepth;
+  // private long[] rangeHashID
+  // Hashid range, 0 min, 1 Max
   private QuadNode northWest = null;
   private QuadNode northEast = null;
   private QuadNode southWest = null;
   private QuadNode southEast = null;
 
 
-  /* 一个矩形区域的象限划分：:
+  /* Quadrant division of a rectangular region：:
 
      TL(1)   |    TR(0)
    ----------|-----------
@@ -408,12 +419,12 @@ class QuadNode {
   }
 
   /**
-   * 构造函数
+   * build func
    *
-   * @param rect         区域
-   * @param grid         栅格数据
-   * @param currentDepth 当前深度
-   * @param maxDepth     最大深度
+   * @param rect         region
+   * @param grid         raster data
+   * @param currentDepth Current depth
+   * @param maxDepth     Maximum depth
    */
   public QuadNode(QuadRect rect, GridData grid, int currentDepth, int maxDepth) {
     this.rect = rect;
@@ -425,16 +436,17 @@ class QuadNode {
 
 
   /**
-   * 插入一个给定的多边形到4叉树中.
+   * Insert a given polygon into a quadtree
    *
-   * @param queryPolygon 给定的多边形区域
+   * @param queryPolygon Given polygon area
    */
   public boolean insert(List<double[]> queryPolygon) {
     Polygon polygonGeo = GeometryOperation.getPolygonByDoubleList(queryPolygon);
     if (polygonGeo != null) {
-      // 将多边形插入区域
-      // 插入前 先使用外接矩形框来判断是否相离,如果相离则跟矩形就相离,否则再判断矩形
-      // 进入insert的函数都是不相离的，在外层先判断
+      // Insert polygon into area
+      // Before inserting, use the external rectangle to judge whether they are separated.
+      // If they are, they are separated from the rectangle. Otherwise, judge the rectangle
+      // The functions that enter the insert are inseparable. Judge first in the outer layer
       Geometry rect = polygonGeo.getEnvelope();
       List<Point2D.Double> polygon = this.rect.getPolygonPointList();
       if (GeometryOperation.disjoint(rect, polygon)) {
@@ -458,34 +470,41 @@ class QuadNode {
   }
 
   /**
-   * 向四叉树的点中插入一个区域,能够插入的都不是disjoin的区域，能插入一定不相离
+   * Insert a region into the point of a quadtree. All the regions that can
+   * be inserted are not disjoin regions. They must not be separated
    *
-   * @param queryPolygon 待插入的区域
+   * @param queryPolygon Area to be inserted
    */
   public void insert(Polygon queryPolygon) {
     List<Point2D.Double> polygon = this.rect.getPolygonPointList();
     Geometry queryRect = queryPolygon.getEnvelope();
     if (isMaxDepth()) {
-      // 如果是最终的栅格划分则求出该栅格区域的中心点，判断中心点是否在多边形内
-      // 不相离,不包含,则一定相交和状态，相交表示部分选中，当为最后一个节点时也可能不选中
+      // If it is the final grid division, the center point of the grid area will be
+      // calculated to determine whether the center point is in the polygon
+      // If they are inseparable and not included, they must be intersected and in state.
+      // Intersecting indicates partial selection, or they may not be selected when they are
+      // the last node
       Point2D.Double middlePoint = this.rect.getMiddlePoint();
       if (!GeometryOperation.disjoint(queryPolygon, middlePoint)) {
-        // 选中该区域,填写数据范围
+        // Select this area and fill in the data range
         this.grid.setStatus(GridData.STATUS_ALL);
       } else {
-        // 如果没有选中则什么都不做
+        // If not, do nothing
         this.grid.setStatus(GridData.STATUS_DISJOIN);
       }
     } else {
       if (GeometryOperation.contains(queryPolygon, polygon)) {
-        // 如果该点区域被待查询区域包含则该区域整体被选中,整体选中以后需要填写数据范围
+        // If the point area is included in the area to be queried, the area is selected as a
+        // whole. After the area is selected as a whole, the data range needs to be filled in
         this.grid.setStatus(GridData.STATUS_ALL);
       } else {
-        // 设置状态为部分包含
+        // Set state to partially contain
         this.grid.setStatus(GridData.STATUS_CONTAIN);
-        // 不到最大深度则向下切分,向下切分直接找到其对应的四个孩子节点
+        // If it is less than the maximum depth, it will cut down and find its corresponding
+        // four child nodes directly
         List<Point2D.Double> rectList = this.rect.getSplitRect();
-        // 判断一下区域,有交集才创建子孩子,否则略过.分别判断四个象限
+        // Judge the area and create children only when there is intersection. Otherwise, skip.
+        // Judge four quadrants respectively
         List<Point2D.Double> topLeft = Arrays.asList(rectList.get(0), rectList.get(1),
             rectList.get(4), rectList.get(3));
         List<Point2D.Double> topRight = Arrays.asList(rectList.get(1), rectList.get(2),
@@ -499,46 +518,48 @@ class QuadNode {
                                                             this.grid.startColumn) / 2;
         if (!GeometryOperation.disjoint(queryRect, topLeft) && !GeometryOperation
                                                .disjoint(queryPolygon, topLeft)) {
-          // 如果不相离,网格选择左上半区
+          // If they are not separated, select the upper left half of the mesh
           GridData grid = new GridData(this.grid.startRow, gridRowMiddle, gridColumnMiddle,
               this.grid.endColumn, this.maxDepth);
           insertIntoChildren(ChildEnum.TOPLEFT, grid, topLeft, queryPolygon);
         }
         if (!GeometryOperation.disjoint(queryRect, topRight) && !GeometryOperation
                                                .disjoint(queryPolygon, topRight)) {
-          // 如果不相离,网格选择右上半区
+          // If not separated, select the upper right half of the mesh
           GridData grid = new GridData(gridRowMiddle, this.grid.endRow, gridColumnMiddle,
               this.grid.endColumn, this.maxDepth);
           insertIntoChildren(ChildEnum.TOPRIGHT, grid, topRight, queryPolygon);
         }
         if (!GeometryOperation.disjoint(queryRect, bottomLeft) && !GeometryOperation
                                                  .disjoint(queryPolygon, bottomLeft)) {
-          // 如果不相离,网格选择左下半区
+          // If they are not separated, select the lower left half of the mesh
           GridData grid = new GridData(this.grid.startRow, gridRowMiddle, this.grid.startColumn,
               gridColumnMiddle, this.maxDepth);
           insertIntoChildren(ChildEnum.BOTTOMLEFT, grid, bottomLeft, queryPolygon);
         }
         if (!GeometryOperation.disjoint(queryRect, bottomRight) && !GeometryOperation
                                                   .disjoint(queryPolygon, bottomRight)) {
-          // 如果不相离,网格选择右下半区
+          // If not, select the lower right half of the mesh
           GridData grid = new GridData(gridRowMiddle, this.grid.endRow, this.grid.startColumn,
               gridColumnMiddle, this.maxDepth);
           insertIntoChildren(ChildEnum.BOTTOMRIGHT, grid, bottomRight, queryPolygon);
         }
-        // 当处理完四个孩子的时候需要判断四个孩子是否都是选中,选中的话合并
+        // When processing four children, it is necessary to judge whether all four children
+        // are selected. If selected, they will be merged
         combineChild();
-        // 当有非空节点,并且该节点状态是disjoin,除了该节点外其他节点都是null，
-        // 则需要刷新该节点状态为disjoin并设置其所有children 为空
+        // When there is a non empty node and the node status is disjoin, all nodes except this
+        // node are null,need to refresh the node state to disjoin and set all its children to
+        // be empty
         checkAndSetDisJoin();
       }
     }
   }
 
   /**
-   * 将栅格插入树种孩子节点中
+   * Insert grid into tree child node
    *
-   * @param childType 孩子节点
-   * @param rectangle 该孩子节点表示的区域
+   * @param childType Child node
+   * @param rectangle The area represented by the child's s node
    */
   private void insertIntoChildren(ChildEnum childType, GridData grid,
                                   List<Point2D.Double> rectangle, Polygon queryPolygon) {
@@ -566,12 +587,12 @@ class QuadNode {
   }
 
   /**
-   * 合并孩子节点
+   * Merge child nodes
    */
   private void combineChild() {
     if (checkChildCanCombine(this.northWest) && checkChildCanCombine(this.northEast) &&
             checkChildCanCombine(this.southWest) && checkChildCanCombine(this.southEast)) {
-      // 可以合并
+      // Can merge
       this.getGrid().setStatus(GridData.STATUS_ALL);
       this.northWest.clean();
       this.northWest = null;
@@ -585,22 +606,24 @@ class QuadNode {
   }
 
   /**
-   * 判断孩子节点是否可以合并,当孩子节点不为空,并且孩子节点的网格数据状态是全包含时可以合并
+   * Determine whether the child node can be merged.
+   * When the child node is not empty and the grid data state of the
+   * child node is all inclusive, it can be merged
    *
-   * @param child 树中的孩子节点
-   * @return true 可以合并,false 不可以合并
+   * @param child Child nodes in the tree
+   * @return true Can merge,false Can not merge
    */
   private boolean checkChildCanCombine(QuadNode child) {
     return child != null && child.getGrid().getStatus() == GridData.STATUS_ALL;
   }
 
   /**
-   * 判断是否能够设置该区域为disjoin状态
+   * Determine whether the region can be set to disjoin state
    */
   private void checkAndSetDisJoin() {
-    // 是否允许修改标志，默认不许修改
+    // Flag allowed to be modified. It is not allowed to be modified by default
     boolean canChange = false;
-    // 如果一个孩子节点的状态是STATUS_DISJOIN，那么这个孩子节点可以置空
+    // If the status of a child node is status "disjoin, the child node can be left blank
     if (this.northEast != null && this.northEast.getGrid().getStatus() == GridData.STATUS_DISJOIN) {
       this.northEast.clean();
       this.northEast = null;
@@ -629,7 +652,7 @@ class QuadNode {
   }
 
   /**
-   * 获取节点的区域
+   * Get the area of the node
    *
    * @return rect
    */
@@ -642,18 +665,18 @@ class QuadNode {
   }
 
   /**
-   * 判断是否已经达到叶子节点
+   * Determine whether the leaf node has been reached
    *
-   * @return true 已经达到,false 还没有达到
+   * @return true Already achieved,false not achieved
    */
   protected boolean isMaxDepth() {
     return currentDepth > maxDepth;
   }
 
   /**
-   * 判断孩子节点是否为空
+   * Judge whether the child node is empty
    *
-   * @return true 孩子节点为空, false 孩子节点不为空
+   * @return true Child node is empty, false Child node is not empty
    */
   public boolean childrenIsNull() {
     return this.northWest == null && this.northEast == null && this.southWest == null
@@ -661,7 +684,7 @@ class QuadNode {
   }
 
   /**
-   * 清理数的节点
+   * Clean up the nodes of the tree
    */
   public void clean() {
     rect = null;
@@ -673,10 +696,10 @@ class QuadNode {
   }
 
   /**
-   * 获取一个树节点的孩子节点
+   * Get the child node of a tree node
    *
-   * @param childType 孩子节点的枚举数值
-   * @return 树对象
+   * @param childType Enumeration value of child node
+   * @return Tree object
    */
   public QuadNode getChildren(ChildEnum childType) {
     switch (childType) {
@@ -694,7 +717,7 @@ class QuadNode {
   }
 
   /**
-   * 获取当前节点的状态
+   * Get the status of the current node
    *
    * @return STATUS_CONTAIN 0 or STATUS_ALL 1
    */
@@ -705,21 +728,21 @@ class QuadNode {
 }
 
 /**
- * 四叉树对象
+ * Quad tree object
  */
 public class QuadTreeCls {
   private QuadNode root;
   /**
-   * 创建root节点,root节点包含了整个栅格区域
-   * @param depth 树的深度
-   * @param left 坐标左下点
-   * @param down 坐标左下点
-   * @param width 区域的宽度
-   * @param height 区域的高度
+   * Create the root node, which contains the entire grid area
+   * @param depth Depth of tree
+   * @param left Lower left point of coordinate
+   * @param down Lower left point of coordinate
+   * @param width Width of area
+   * @param height Height of area
    */
   public QuadTreeCls(double left, double down, double width, double height, int depth) {
     QuadRect rect = new QuadRect(left, down, width, height);
-    // 根据深度计算出的最大的列长度
+    // Maximum column length based on depth
     int maxColumn = (int) Math.pow(2, depth);
     // 这里面是写入的row,column这样的数据
     GridData grid = new GridData(0, maxColumn, 0, maxColumn, depth);
@@ -727,11 +750,11 @@ public class QuadTreeCls {
   }
 
   /**
-   * 给定切割深度，四叉树的区域范围，以及查询区域，构建一个四叉树
-   * @param vertexes 查询时给定的多边形列表
+   * Given the cutting depth, the region range of quadtree, and the query region, build a quadtree
+   * @param vertexes List of polygons given at query time
    */
   public boolean insert(List<double[]> vertexes) {
-    // 如果初始区域比根节点表示区域大，则直接退出
+    // If the initial area is larger than the root node, exit directly
     QuadRect outerRectangle = getOuterRectangle(vertexes);
     if (this.root.getRect().outsideBox(outerRectangle)) {
       System.out.println("the top rect is bigger than the root node return");
@@ -741,8 +764,8 @@ public class QuadTreeCls {
   }
 
   /**
-   * 获取树种所有节点的范围
-   * @return 范围列表
+   * Obtain the range of all nodes of tree species
+   * @return Scope List
    */
   public List<Long[]> getNodesData() {
     List<Long[]> result = new ArrayList<>();
@@ -753,16 +776,16 @@ public class QuadTreeCls {
   }
 
   /**
-   * 获取一个节点的数据范围
-   * @param node 节点
-   * @param result 返回值
+   * Get the data range of a node
+   * @param node node
+   * @param result Return value
    */
   private void getNodeGridRange(QuadNode node, List<Long[]> result) {
     if (node.getNodeStatus() == GridData.STATUS_ALL) {
       Long[] range = node.getGrid().getHashIDRange();
       result.add(range);
     } else {
-      // 加的顺序是，左下，左上，右上，右下
+      // The order of addition is, bottom left, top left, top right, bottom right
       getSubCildGridRange(node, QuadNode.ChildEnum.BOTTOMLEFT, result);
       getSubCildGridRange(node, QuadNode.ChildEnum.TOPLEFT, result);
       getSubCildGridRange(node, QuadNode.ChildEnum.TOPRIGHT, result);
@@ -771,10 +794,10 @@ public class QuadTreeCls {
   }
 
   /**
-   * 获取一个节点孩子节点的范围
-   * @param node 节点
-   * @param childType 孩子节点类型
-   * @param result  返回值
+   * Get the range of a node's child nodes
+   * @param node tree node
+   * @param childType Child node type
+   * @param result  return value
    */
   private void getSubCildGridRange(QuadNode node, QuadNode.ChildEnum childType,
                                    List<Long[]> result) {
@@ -785,11 +808,12 @@ public class QuadTreeCls {
   }
 
   /**
-   * 对区域结果进行排序和合并
-   * @param rangeList 区域列表
+   * Sorting and merging area results
+   * @param rangeList Region list
    */
   public void sortRange(List<Long[]> rangeList) {
-    // 排序的时候只需要对 long[] 的首节点进行排序即可,因为可以保证区间没有重复.
+    // When sorting, you only need to sort the first node of long [],
+    // because you can ensure that the interval is not repeated
     rangeList.sort(new Comparator<Long[]>() {
       @Override
       public int compare(Long[] x, Long[] y) {
@@ -799,8 +823,8 @@ public class QuadTreeCls {
   }
 
   /**
-   * 将排好序的数据作合并，合并后的数据段数可能减少。
-   * @param rangeList 区域列表，已经排好序
+   * If the ordered data is merged, the number of data segments after merging may be reduced.
+   * @param rangeList Area list, sorted
    */
   public void combineRange(List<Long[]> rangeList) {
     if (rangeList.size() > 1) {
@@ -816,9 +840,9 @@ public class QuadTreeCls {
   }
 
   /**
-   * 获取一个多边形的外接矩形
-   * @param polygon 多边形
-   * @return 矩形区域
+   * Get the circumscribed rectangle of a polygon
+   * @param polygon polygon
+   * @return Rectangular area
    */
   private QuadRect getOuterRectangle(List<double[]> polygon) {
     double left = Double.MAX_VALUE;

@@ -43,11 +43,11 @@ public class QuadTreeClsTest {
     }
 
     /**
-     * 测试刚好插入整个坐标区域
+     * The test just inserts the entire coordinate area
      */
     @Test
     public void testInsertPolygonFullRange() throws Exception {
-        //插入整个区域,直接就是root
+        //Insert the entire area, directly root
         List<double[]> pointList = new ArrayList<>();
         pointList.add(new double[] {0, 0});
         pointList.add(new double[] {0, 16});
@@ -61,7 +61,7 @@ public class QuadTreeClsTest {
     }
 
     /**
-     * 测试插入区域大于整个区域
+     * Test insertion area is larger than the whole area
      */
     @Test
     public void testInsertBiggerPolygon() throws Exception {
@@ -78,7 +78,7 @@ public class QuadTreeClsTest {
     }
 
     /**
-     * 测试插入区域不合法
+     * Illegal test insertion area
      */
     @Test
     public void testInsertLessThan3Points() throws Exception {
@@ -91,12 +91,12 @@ public class QuadTreeClsTest {
     }
 
     /**
-     * 测试创建hasdid
+     * Test creation Hadid
      */
     @Test
     public void testCreateHashID() throws Exception {
         GridData grid = new GridData(0,0, 15,15,4);
-        //如下是一个方格
+        // Here is a grid
         Assume.assumeTrue(grid.createHashID(0,0) == 0);
         Assume.assumeTrue(grid.createHashID(0,1) == 1);
         Assume.assumeTrue(grid.createHashID(1,0) == 2);
@@ -116,7 +116,7 @@ public class QuadTreeClsTest {
         Assume.assumeTrue(grid.createHashID(2,3) == 13);
         Assume.assumeTrue(grid.createHashID(3,2) == 14);
         Assume.assumeTrue(grid.createHashID(3,3) == 15);
-        //中心点
+        // Center point
         Assume.assumeTrue(grid.createHashID(0,4) == 16);
         Assume.assumeTrue(grid.createHashID(0,5) == 17);
         Assume.assumeTrue(grid.createHashID(1,4) == 18);
@@ -149,7 +149,7 @@ public class QuadTreeClsTest {
     }
 
     /**
-     * 测试插入一个矩形
+     * Test inserts a rectangle
      */
     @Test
     public void testQueryOne() throws Exception {
@@ -159,7 +159,7 @@ public class QuadTreeClsTest {
         pointList.add(new double[] {13.6, 11.8});
         pointList.add(new double[] {11.5, 6.3});
         boolean flag = qtreee.insert(pointList);
-        // 第一层
+        // First floor
         QuadNode oneLevel_TOPLEFT = qtreee.getRoot().getChildren(QuadNode.ChildEnum.TOPLEFT);
         QuadNode oneLevel_TOPRIGHT = qtreee.getRoot().getChildren(QuadNode.ChildEnum.TOPRIGHT);
         QuadNode oneLevel_BOTTOMRIGHT = qtreee.getRoot().getChildren(QuadNode.ChildEnum.BOTTOMRIGHT);
@@ -171,7 +171,7 @@ public class QuadTreeClsTest {
         Assume.assumeTrue(oneLevel_TOPLEFT.getGrid().getStatus() == GridData.STATUS_CONTAIN);
         Assume.assumeTrue(oneLevel_TOPRIGHT.getGrid().getStatus() == GridData.STATUS_CONTAIN);
         Assume.assumeTrue(oneLevel_BOTTOMRIGHT.getGrid().getStatus() == GridData.STATUS_CONTAIN);
-        // 第二层
+        // The second floor
         // oneLevel_TOPLEFT
         QuadNode twoLevel_TOPLEFT_TOPLEFT = oneLevel_TOPLEFT.getChildren(QuadNode.ChildEnum.TOPLEFT);
         QuadNode twoLevel_TOPLEFT_TOPRIGHT = oneLevel_TOPLEFT.getChildren(QuadNode.ChildEnum.TOPRIGHT);
@@ -207,7 +207,7 @@ public class QuadTreeClsTest {
         Assume.assumeTrue(twoLevel_BOTTOMRIGHT_BOTTOMRIGHT == null);
         Assume.assumeTrue(twoLevel_BOTTOMRIGHT_BOTTOMLEFT == null);
 
-        // 第三层
+        // The third level
         // twoLevel_TOPLEFT_TOPRIGHT
         QuadNode twoLevel_TOPLEFT_TOPRIGHT_TOPLEFT = twoLevel_TOPLEFT_TOPRIGHT.getChildren(QuadNode.ChildEnum.TOPLEFT);
         QuadNode twoLevel_TOPLEFT_TOPRIGHT_TOPRIGHT = twoLevel_TOPLEFT_TOPRIGHT.getChildren(QuadNode.ChildEnum.TOPRIGHT);
@@ -268,15 +268,13 @@ public class QuadTreeClsTest {
         Assume.assumeTrue(twoLevel_BOTTOMRIGHT_TOPLEFT_TOPRIGHT.getGrid().getStatus() == GridData.STATUS_CONTAIN);
         Assume.assumeTrue(twoLevel_BOTTOMRIGHT_TOPLEFT_BOTTOMRIGHT == null);
         Assume.assumeTrue(twoLevel_BOTTOMRIGHT_TOPLEFT_BOTTOMLEFT == null);
-        // 第四层
-
 
     }
 
     /**
-     * 初始结果 120->120  123->123  122->122  97->97  99->99  102->102  108->111  104->107  192->207  208->208  210->210  216->216  225->225  228->228  229->229  151->151  157->157  159->159  158->158
-     * 排序后结果 97->97  99->99  102->102  104->107  108->111  120->120  122->122  123->123  151->151  157->157  158->158  159->159  192->207  208->208  210->210  216->216  225->225  228->228  229->229
-     * 合并后结果 97->97  99->99  102->102  104->111  120->120  122->123  151->151  157->158  159->159  192->208  210->210  216->216  225->225  228->229
+     * Initial result 120->120  123->123  122->122  97->97  99->99  102->102  108->111  104->107  192->207  208->208  210->210  216->216  225->225  228->228  229->229  151->151  157->157  159->159  158->158
+     * Results after sorting 97->97  99->99  102->102  104->107  108->111  120->120  122->122  123->123  151->151  157->157  158->158  159->159  192->207  208->208  210->210  216->216  225->225  228->228  229->229
+     * Combined results 97->97  99->99  102->102  104->111  120->120  122->123  151->151  157->158  159->159  192->208  210->210  216->216  225->225  228->229
      * @throws Exception
      */
     @Test

@@ -31,57 +31,46 @@ import org.apache.commons.lang.StringUtils;
  * GeoHash default implementation
  */
 public class GeoHashImpl extends CustomIndex<List<Long[]>> {
-  // 角度转弧度的转换因子
+  // conversion factor of angle to radian
   private static final double CONVERT_FACTOR = 180.0;
-  // 地球半径
+  // Earth radius
   private static final double EARTH_RADIUS = 6371004.0;
-
-  private static final String GEOHASH = "geohash";
-  // 赤道经度1度或者纬度1度对应的地理空间距离
-  private static double transValue = Math.PI / CONVERT_FACTOR * EARTH_RADIUS;
-  // 坐标原点的经度
+  // Longitude of coordinate origin
   // private double oriLongitude = 0;
-  // 坐标原点的纬度
+  // Latitude of coordinate origin
   private double oriLatitude = 0;
-  // 用户定义地图最大的经度
+  // User defined maximum longitude of map
   private double userDefineMaxLongitude = 0;
-  // 用户定义地图最大的纬度
+  // User defined maximum latitude of map
   private double userDefineMaxLatitude = 0;
-  // 用户定义地图最小的经度
+  // User defined map minimum longitude
   private double userDefineMinLongitude = 0;
-  // 用户定义地图最小的纬度
+  // User defined map minimum latitude
   private double userDefineMinLatitude = 0;
-  // 计算后得出的补齐地图最大的经度
+  // The maximum longitude of the completed map after calculation
   private double CalculateMaxLongitude = 0;
-  // 计算后得出的补齐地图最大的纬度
+  // The maximum latitude of the completed map after calculation
   private double CalculateMaxLatitude = 0;
-  //栅格长度单位是米
+  // Grid length is in meters
   private int gridSize = 0;
-  // 坐标原点纬度的余玄数值
+  // cos value of latitude of origin of coordinate
   private double mCos;
-  // 每一个gridSize长度对应Y轴的度数
+  // The degree of Y axis corresponding to each grid size length
   private double deltaY = 0;
-  // 每一个gridSize长度应X轴的度数
+  // Each grid size length should be the degree of X axis
   private double deltaX = 0;
-  // 每一个gridSize长度对应Y轴的度数 * 系数
+  // Degree * coefficient of Y axis corresponding to each grid size length
   private double deltaYByRatio = 0;
-  // 每一个gridSize长度应X轴的度数 * 系数
+  // Each grid size length should be X-axis Degree * coefficient
   private double deltaXByRatio = 0;
-  // 对整个区域切的刀数（一横一竖为1刀），就是四叉树的深度
+  // The number of knives cut for the whole area (one horizontally and one vertically)
+  // is the depth of quad tree
   private int cutLevel = 0;
-  //    private int totalRowNumber = 0;    // 整个区域的行数，从左上开始到右下
-  //    private int totalCloumnNumber = 0;   // 整个区域的列数，从左上开始到右下
-  //    private int udfRowStartNumber = 0;   // 用户定义区域的开始行数
-  //    private int udfRowEndNumber = 0;   // 用户定义区域的结束的行数
-  //    private int udfCloumnStartNumber = 0;   // 用户定义区域的开始列数
-  //    private int udfCloumnEndNumber = 0;   // 用户定义区域的开始结束列数
-  //    private double lon0 = 0;              // 栅格最小数值的经度坐标,最小栅格坐标是扩展区域最左上角的经纬度坐标
-  //    private double lat0 = 0;              // 栅格最小数值的纬度坐标,最小栅格坐标是扩展区域最左上角的经纬度坐标
-  // *系数的常量
+  // * Constant of coefficient
   private double lon0ByRation = 0;
-  // *系数的常量
+  // * Constant of coefficient
   private double lat0ByRation = 0;
-  // 系数，用于将double类型的经纬度，转换成int类型后计算
+  // used to convert the latitude and longitude of double type to int type for calculation
   private int conversionRatio = 1;
 
   /**
@@ -278,42 +267,52 @@ public class GeoHashImpl extends CustomIndex<List<Long[]>> {
    * @throws Exception
    */
   private void calculateData() throws Exception {
-    // 角度转弧度 radians = (Math.PI / 180) * degrees 求得原点纬度角度的余弦数值
+    // Angular to radian, radians = (Math.PI / 180) * degrees
+    // Cosine value of latitude angle of origin
     this.mCos = Math.cos(this.oriLatitude * Math.PI / CONVERT_FACTOR);
-    // 求得 δx=L∗360/(2πR∗cos(lat))
+    // get δx=L∗360/(2πR∗cos(lat))
     this.deltaX = (this.gridSize * 360) / (2 * Math.PI * EARTH_RADIUS * this.mCos);
     this.deltaXByRatio = this.deltaX * this.conversionRatio;
-    // 求得 δy=L∗360/2πR
+    // get δy=L∗360/2πR
     this.deltaY = (this.gridSize * 360) / (2 * Math.PI * EARTH_RADIUS);
     this.deltaYByRatio = this.deltaY * this.conversionRatio;
-    // 计算补齐区域并计算栅格i,j表示栅格编号
-    // Xmax = x0+(2^n∗δx) Ymax = y0+(2^n∗δx) 其中N是切的刀数
-    // 其中x0,y0是给定区域的最小x，y坐标， Xmax >= maxLongitude Ymax >= maxLatitude
-    // 计算过程先把maxLongitude, maxLatitude 代入计算出N，如果N不是整数，则取N的下一个整数，代入后求得Xmax，Ymax。
+    // Calculate the complement area and grid i,j for grid number
+    // Xmax = x0+(2^n∗δx) Ymax = y0+(2^n∗δx) Where n is the number of cut
+    // Where x0, Y0 are the minimum x, y coordinates of a given region，
+    // Xmax >= maxLongitude Ymax >= maxLatitude
+    // In the calculation process, first substitute maxlongitude and maxlatitude to calculate n.
+    // if n is not an integer, then take the next integer of N, and then substitute to find
+    // xmax and ymax。
     this.calculateArea();
   }
 
   /**
-   * 计算补齐区域，包括计算补齐区域的范围，以及切的刀数及四叉树的深度
+   * Calculate the complement area, including the range of the complement area, t
+   * he number of knives cut and the depth of the quad tree
    */
   private void calculateArea() {
-    // step 1 使用maxLongitude, maxLatitude, minLongitude, minLatitude 代入公式计算出Xn,Yn
-    // 这里用户给定区域大多数是长方形,这里需要扩展到正方形处理,求Xn,Yn的最大数值
+    // step 1 calculate xn, yn by using maxLongitude, maxLatitude, minLongitude, minLatitude
+    // substitution formula
+    // Here, the user's given area is mostly rectangle, which needs to be extended to
+    // square processing to find the maximum value of XN and yn
     // n=log_2 （Xmax−X0)/δx， log_2 （Ymax−Y0)/δy
     double Xn = Math.log((userDefineMaxLongitude - userDefineMinLongitude) / deltaX) / Math.log(2);
     double Yn = Math.log((userDefineMaxLatitude - userDefineMinLatitude) / deltaY) / Math.log(2);
     double doubleMax = Math.max(Xn, Yn);
     this.cutLevel = doubleMax % 1 == 0 ? (int) doubleMax : (int) (doubleMax + 1);
-    // setep 2 根据得到的切分的次数，重新计算区域
+    // setep 2 recalculate the region according to the number of segmentation
     this.CalculateMaxLongitude = userDefineMinLongitude + Math.pow(2, this.cutLevel) * deltaX;
     this.CalculateMaxLatitude = userDefineMinLatitude + Math.pow(2, this.cutLevel) * deltaY;
   }
 
   /**
-   * 通过栅格索引坐标和计算hashID，栅格经纬度坐标可以通过经纬度转化
-   * @param longitude 经度, 实际传入的经纬度是经过了*系数处理的,将浮点计算转为整数计算
-   * @param latitude 纬度, 实际传入的经纬度是经过了*系数处理的,将浮点计算转为整数计算
-   * @return 栅格ID数值[row,column] 行列从1开始
+   * Through grid index coordinates and calculation of hashid, grid latitude and longitude
+   * coordinates can be transformed by latitude and longitude
+   * @param longitude Longitude, the actual longitude and latitude are processed by * coefficient,
+   *                  and the floating-point calculation is converted to integer calculation
+   * @param latitude Latitude, the actual longitude and latitude are processed by * coefficient,
+   *                 and the floating-point calculation is converted to integer calculation.
+   * @return Grid ID value [row, column] column starts from 1
    */
   private int[] calculateID(long longitude, long latitude) throws Exception {
     try {
@@ -326,9 +325,9 @@ public class GeoHashImpl extends CustomIndex<List<Long[]>> {
   }
 
   /**
-   * 由栅格的坐标计算出对应的hashID数值
-   * @param row 栅格化后的行index
-   * @param column 栅格化后的列index
+   * Calculate the corresponding hashid value from the grid coordinates
+   * @param row Gridded row index
+   * @param column Gridded column index
    * @return hash id
    */
   private long createHashID(long row, long column) {
