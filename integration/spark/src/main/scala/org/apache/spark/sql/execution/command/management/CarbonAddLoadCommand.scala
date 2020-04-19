@@ -24,24 +24,23 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 import org.apache.hadoop.fs.FileStatus
-import org.apache.spark.sql.{AnalysisException, CarbonEnv, Row, SparkSession}
 import org.apache.spark.sql.carbondata.execution.datasources.CarbonSparkDataSourceUtil.convertSparkToCarbonDataType
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.command.{Checker, MetadataCommand}
 import org.apache.spark.sql.execution.strategy.MixedFormatHandler
 import org.apache.spark.sql.hive.CarbonRelation
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{DoubleType, FloatType, StructType}
+import org.apache.spark.sql.{AnalysisException, CarbonEnv, Row, SparkSession}
 
 import org.apache.carbondata.common.exceptions.sql.MalformedCarbonCommandException
 import org.apache.carbondata.common.logging.LogServiceFactory
-import org.apache.carbondata.core.datamap.{DataMapStoreManager, Segment}
 import org.apache.carbondata.core.datamap.status.DataMapStatusManager
+import org.apache.carbondata.core.datamap.{DataMapStoreManager, Segment}
 import org.apache.carbondata.core.datastore.impl.FileFactory
 import org.apache.carbondata.core.exception.ConcurrentOperationException
 import org.apache.carbondata.core.indexstore.{PartitionSpec => CarbonPartitionSpec}
 import org.apache.carbondata.core.metadata.SegmentFileStore
 import org.apache.carbondata.core.metadata.datatype.Field
-import org.apache.carbondata.core.metadata.encoder.Encoding
 import org.apache.carbondata.core.metadata.schema.table.CarbonTable
 import org.apache.carbondata.core.mutate.CarbonUpdateUtil
 import org.apache.carbondata.core.statusmanager.{FileFormat, LoadMetadataDetails, SegmentStatus, SegmentStatusManager}
@@ -111,7 +110,12 @@ case class CarbonAddLoadCommand(
     val (inputPathSchema, lastLevelDirFileMap) =
       MixedFormatHandler.collectInfo(sparkSession, options, inputPath)
     val inputPathCarbonFields = inputPathSchema.fields.map { field =>
-      val dataType = convertSparkToCarbonDataType(field.dataType)
+      val sparkDataType = if (field.dataType == FloatType) {
+        DoubleType
+      } else {
+        field.dataType
+      }
+      val dataType = convertSparkToCarbonDataType(sparkDataType)
       new Field(field.name, dataType)
     }
     val carbonTableSchema = new Schema(tableSchema.fields.map { field =>
@@ -132,7 +136,12 @@ case class CarbonAddLoadCommand(
           if (input.nonEmpty) {
             val nameAndDataType = input.trim.toLowerCase.split(":")
             if (nameAndDataType.size == 2) {
-              new Field(nameAndDataType(0), nameAndDataType(1))
+              val dataType = if (nameAndDataType(1).equalsIgnoreCase("float")) {
+                "double"
+              } else {
+                nameAndDataType(1)
+              }
+              new Field(nameAndDataType(0), dataType)
             } else {
               throw new AnalysisException(s"invalid partition option: ${ options.toString() }")
             }

@@ -19,26 +19,26 @@ package org.apache.carbondata.spark.testsuite.addsegment
 import java.io.File
 import java.nio.file.{Files, Paths}
 
+import scala.io.Source
+
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.test.util.QueryTest
 import org.apache.spark.sql.util.SparkSQLUtil
 import org.apache.spark.sql.{AnalysisException, CarbonEnv, Row}
-import org.scalatest.BeforeAndAfterAll
-
-import org.apache.carbondata.core.constants.CarbonCommonConstants
-import org.apache.carbondata.core.datastore.impl.FileFactory
-import org.apache.carbondata.core.datastore.row.CarbonRow
-import org.apache.carbondata.core.util.{CarbonProperties, ThreadLocalSessionInfo}
-import org.apache.carbondata.core.util.path.CarbonTablePath
-import org.apache.carbondata.hadoop.readsupport.impl.CarbonRowReadSupport
-import org.apache.carbondata.sdk.file.{CarbonReader, CarbonWriter}
 import org.junit.Assert
-import scala.io.Source
+import org.scalatest.BeforeAndAfterAll
 
 import org.apache.carbondata.common.Strings
 import org.apache.carbondata.common.exceptions.sql.MalformedCarbonCommandException
+import org.apache.carbondata.core.constants.CarbonCommonConstants
 import org.apache.carbondata.core.datastore.filesystem.{CarbonFile, CarbonFileFilter}
+import org.apache.carbondata.core.datastore.impl.FileFactory
+import org.apache.carbondata.core.datastore.row.CarbonRow
 import org.apache.carbondata.core.metadata.datatype.{DataTypes, Field}
+import org.apache.carbondata.core.util.CarbonProperties
+import org.apache.carbondata.core.util.path.CarbonTablePath
+import org.apache.carbondata.hadoop.readsupport.impl.CarbonRowReadSupport
+import org.apache.carbondata.sdk.file.{CarbonReader, CarbonWriter, Schema}
 
 class AddSegmentTestCase extends QueryTest with BeforeAndAfterAll {
 
@@ -70,6 +70,94 @@ class AddSegmentTestCase extends QueryTest with BeforeAndAfterAll {
     checkAnswer(sql("select count(*) from addsegment1"), Seq(Row(20)))
     checkAnswer(sql("select count(empname) from addsegment1"), Seq(Row(20)))
     FileFactory.deleteAllFilesOfDir(new File(newPath))
+  }
+
+  test("Test orc external segment with float") {
+    sql("drop table if exists orc_float")
+    sql("drop table if exists carbon_float")
+    val newPath = storeLocation + "/" + "orc_float"
+    sql("create table orc_float(c1 float, c2 int, c3 float) using orc partitioned by (c1)")
+    sql("insert into orc_float select 1, 5, 3")
+    sql("insert into orc_float select 7, 9, 3")
+    checkAnswer(sql("select * from orc_float"), Seq(Row(1, 5, 3), Row(7, 9, 3)))
+    sql("create table carbon_float(c2 int, c3 float) partitioned by (c1 float) stored as carbondata")
+    sql("insert into carbon_float select 2, 6, 4")
+    sql("insert into carbon_float select 8, 10, 4")
+    sql(s"alter table carbon_float add segment options('path'='$newPath', 'format'='orc', 'partition'='c1:float')")
+    checkAnswer(sql("select * from carbon_float"), Seq(Row(1, 5, 3), Row(7, 9, 3), Row(2, 6, 4), Row(8, 10, 4)))
+    checkAnswer(sql("select * from carbon_float where c1=3 and c2=1"), Seq(Row(1, 5, 3)))
+    checkAnswer(sql("select * from carbon_float where c1=3 and c3=9"), Seq(Row(7, 9, 3)))
+    checkAnswer(sql("select * from carbon_float where c1=3"), Seq(Row(1, 5, 3), Row(7, 9, 3)))
+    checkAnswer(sql("select * from carbon_float where c1=4 and c2=2"), Seq(Row(2, 6, 4)))
+    checkAnswer(sql("select * from carbon_float where c1=4 and c3=10"), Seq(Row(8, 10, 4)))
+    checkAnswer(sql("select * from carbon_float where c1=4"), Seq(Row(2, 6, 4), Row(8, 10, 4)))
+  }
+
+  test("Test parquet external segment with float") {
+    sql("drop table if exists parquet_float")
+    sql("drop table if exists carbon_float")
+    val newPath = storeLocation + "/" + "parquet_float"
+    sql("create table parquet_float(c1 float, c2 int, c3 float) using parquet")
+    sql("insert into parquet_float select 1, 5, 3")
+    sql("insert into parquet_float select 7, 9, 3")
+    checkAnswer(sql("select * from parquet_float"), Seq(Row(1, 5, 3), Row(7, 9, 3)))
+    sql("create table carbon_float(c2 int, c3 float, c1 float) stored as carbondata")
+    sql("insert into carbon_float select 2, 6, 4")
+    sql("insert into carbon_float select 8, 10, 4")
+    sql(s"alter table carbon_float add segment options('path'='$newPath', 'format'='parquet')")
+    checkAnswer(sql("select * from carbon_float"), Seq(Row(1, 5, 3), Row(7, 9, 3), Row(2, 6, 4), Row(8, 10, 4)))
+  }
+
+  test("Test parquet external segment with float partitioned column") {
+    sql("drop table if exists parquet_float")
+    sql("drop table if exists carbon_float")
+    val newPath = storeLocation + "/" + "parquet_float"
+    sql("create table parquet_float(c1 float, c2 int, c3 float) using parquet partitioned by (c1)")
+    sql("insert into parquet_float select 1, 5, 3")
+    sql("insert into parquet_float select 7, 9, 3")
+    checkAnswer(sql("select * from parquet_float"), Seq(Row(1, 5, 3), Row(7, 9, 3)))
+    sql("create table carbon_float(c2 int, c3 float) partitioned by (c1 float) stored as carbondata")
+    sql("insert into carbon_float select 2, 6, 4")
+    sql("insert into carbon_float select 8, 10, 4")
+    sql(s"alter table carbon_float add segment options('path'='$newPath', 'format'='parquet', 'partition'='c1:float')")
+    checkAnswer(sql("select * from carbon_float"), Seq(Row(Row(1, 5, 3), 7, 9, 3), Row(2, 6, 4), Row(8, 10, 4)))
+    checkAnswer(sql("select * from carbon_float where c1=3 and c2=1"), Seq(Row(1, 5, 3)))
+    checkAnswer(sql("select * from carbon_float where c1=3 and c3=8"), Seq(Row(7, 9, 3)))
+    checkAnswer(sql("select * from carbon_float where c1=3"), Seq(Row(1, 5, 3), Row(7, 9, 3)))
+    checkAnswer(sql("select * from carbon_float where c1=4 and c2=2"), Seq(Row(2, 6, 4)))
+    checkAnswer(sql("select * from carbon_float where c1=4 and c3=10"), Seq(Row(8, 10, 4)))
+    checkAnswer(sql("select * from carbon_float where c1=4"), Seq(Row(2, 6, 4), Row(8, 10, 4)))
+  }
+
+  test("Test sdk ext segment with float") {
+    val tableName = "sdk_float"
+    sql(s"drop table if exists $tableName")
+    sql(s"""create table $tableName (c1 float, c2 int, c3 float) stored as carbondata """)
+
+    val externalSegmentPath = storeLocation + "/" + "external_segment_float"
+    FileFactory.deleteAllFilesOfDir(new File(externalSegmentPath))
+    val schema = new Schema(Array(new Field("c1", "float"),
+      new Field("c2", "int"),
+      new Field("c3", "float")))
+    // write into external segment folder
+    val writer = CarbonWriter.builder
+      .outputPath(externalSegmentPath)
+      .withJsonInput(schema)
+      .writtenBy("AddSegmentTestCase")
+      .build()
+    writer.write("{\"c1\":\"1\", \"c2\":5, \"c3\":3}")
+    writer.write("{\"c1\":\"7\", \"c2\":9,  \"c3\":3}")
+    writer.close()
+
+    sql(s"alter table $tableName add segment options('path'='$externalSegmentPath', 'format'='carbon')")
+    checkAnswer(sql(s"select * from $tableName"), Seq(Row(1, 5, 3), Row(7, 9, 3)))
+    sql(s"insert into $tableName select 2, 6, 4")
+    sql(s"insert into $tableName select 8, 10, 4")
+
+    checkAnswer(sql(s"select * from $tableName"), Seq(Row(1, 5, 3), Row(7, 9, 3), Row(2, 6, 4), Row(8, 10, 4)))
+
+    FileFactory.deleteAllFilesOfDir(new File(externalSegmentPath))
+    sql(s"drop table $tableName")
   }
 
   test("Test added segment drop") {
@@ -860,5 +948,8 @@ class AddSegmentTestCase extends QueryTest with BeforeAndAfterAll {
     sql("drop table if exists addSegPar")
     sql("drop table if exists addSegParless")
     sql("drop table if exists addSegParmore")
+    sql("drop table if exists orc_float")
+    sql("drop table if exists parquet_float")
+    sql("drop table if exists carbon_float")
   }
 }

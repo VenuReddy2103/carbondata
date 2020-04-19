@@ -24,29 +24,29 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path, PathFilter}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SparkSession, SparkSqlAdapter}
 import org.apache.spark.sql.carbondata.execution.datasources.SparkCarbonFileFormat
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, AttributeSet, Expression, ExpressionSet, NamedExpression}
-import org.apache.spark.sql.execution.{FilterExec, ProjectExec}
-import org.apache.spark.sql.execution.datasources.{FileFormat, HadoopFsRelation, InMemoryFileIndex, LogicalRelation}
+import org.apache.spark.sql.catalyst.{InternalRow, expressions}
 import org.apache.spark.sql.execution.datasources.csv.CSVFileFormat
 import org.apache.spark.sql.execution.datasources.json.JsonFileFormat
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.datasources.text.TextFileFormat
+import org.apache.spark.sql.execution.datasources.{FileFormat, HadoopFsRelation, InMemoryFileIndex, LogicalRelation}
+import org.apache.spark.sql.execution.vectorized.MutableColumnarRow
+import org.apache.spark.sql.execution.{FilterExec, ProjectExec}
 import org.apache.spark.sql.hive.orc.OrcFileFormat
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{FloatType, StructField, StructType}
 import org.apache.spark.sql.util.SparkSQLUtil
+import org.apache.spark.sql.{SparkSession, SparkSqlAdapter}
 
 import org.apache.carbondata.common.logging.LogServiceFactory
 import org.apache.carbondata.core.constants.CarbonCommonConstants
 import org.apache.carbondata.core.datastore.impl.FileFactory
 import org.apache.carbondata.core.metadata.{AbsoluteTableIdentifier, SegmentFileStore}
 import org.apache.carbondata.core.readcommitter.ReadCommittedScope
-import org.apache.carbondata.core.statusmanager.{FileFormat => FileFormatName, SegmentStatus, SegmentStatusManager}
-import org.apache.carbondata.core.util.{CarbonProperties, CarbonSessionInfo, SessionParams, ThreadLocalSessionInfo}
+import org.apache.carbondata.core.statusmanager.{SegmentStatus, SegmentStatusManager, FileFormat => FileFormatName}
 import org.apache.carbondata.core.util.path.CarbonTablePath
+import org.apache.carbondata.core.util.{CarbonProperties, CarbonSessionInfo, SessionParams, ThreadLocalSessionInfo}
 
 object MixedFormatHandler {
 
@@ -147,6 +147,7 @@ object MixedFormatHandler {
       readCommittedScope: ReadCommittedScope,
       identier: AbsoluteTableIdentifier,
       supportBatch: Boolean = true): Option[(RDD[InternalRow], Boolean)] = {
+    val sparkSession = l.relation.sqlContext.sparkSession
     val loadMetadataDetails = readCommittedScope.getSegmentList
     val segsToAccess = getSegmentsToAccess(identier)
     val rdds = loadMetadataDetails.filter(metaDetail =>
@@ -159,10 +160,14 @@ object MixedFormatHandler {
       .groupBy(_.getFileFormat)
       .map { case (format, detailses) =>
         // collect paths as input to scan RDD
+        var options : mutable.Map[String, String] = null
         val paths = detailses. flatMap { d =>
           val segmentFile = SegmentFileStore.readSegmentFile(
             CarbonTablePath.getSegmentFilePath(readCommittedScope.getFilePath, d.getSegmentFile))
 
+          if (options == null) {
+            options = segmentFile.getOptions.asScala
+          }
           // If it is a partition table, the path to create RDD should be the root path of the
           // partition folder (excluding the partition subfolder).
           // If it is not a partition folder, collect all data file paths
@@ -182,7 +187,11 @@ object MixedFormatHandler {
           }
         }
         val fileFormat = getFileFormat(format, supportBatch)
-        getRDDForExternalSegments(l, projects, filters, fileFormat, paths)
+        val fs = paths(0).getFileSystem(SparkSQLUtil.sessionState(sparkSession).newHadoopConf())
+        val fileStatus = fs.getFileStatus(paths(0))
+        val leafDirFileMap = collectAllLeafFileStatus(sparkSession, fileStatus, fs)
+        val schema = fileFormat.inferSchema(sparkSession, options.toMap, leafDirFileMap.head._2).get
+        getRDDForExternalSegments(l, projects, filters, fileFormat, paths, schema)
       }
     if (rdds.nonEmpty) {
       if (rdds.size == 1) {
@@ -242,14 +251,14 @@ object MixedFormatHandler {
       projects: Seq[NamedExpression],
       filters: Seq[Expression],
       fileFormat: FileFormat,
-      paths: Seq[Path]): (RDD[InternalRow], Boolean) = {
+      paths: Seq[Path], schema: org.apache.spark.sql.types.StructType): (RDD[InternalRow], Boolean) = {
     val sparkSession = l.relation.sqlContext.sparkSession
     val fsRelation = l.catalogTable match {
       case Some(catalogTable) =>
         val fileIndex =
           new InMemoryFileIndex(sparkSession, paths, catalogTable.storage.properties, None)
         // exclude the partition in data schema
-        val dataSchema = catalogTable.schema.filterNot { column =>
+        val dataSchema = schema.filterNot { column =>
           catalogTable.partitionColumnNames.contains(column.name)}
         HadoopFsRelation(
           fileIndex,
@@ -314,14 +323,22 @@ object MixedFormatHandler {
       requiredExpressions.filterNot(partitionColumns.contains).asInstanceOf[Seq[Attribute]]
     val outputSchema = readDataColumns.toStructType
     LOGGER.info(s"Output Data Schema: ${ outputSchema.simpleString(5) }")
-
+    val modifiedOutputFields = outputSchema.fields map { e =>
+      val field = schema.fields.find(_.name.equalsIgnoreCase(e.name))
+      if (field.isDefined && field.get.dataType == FloatType) {
+        StructField(e.name, FloatType, e.nullable)
+      } else {
+        e
+      }
+    }
+    val modifiedOutputSchema = StructType(modifiedOutputFields)
     val outputAttributes = readDataColumns ++ partitionColumns
 
     val scan =
       SparkSqlAdapter.getScanForSegments(
         fsRelation,
         outputAttributes,
-        outputSchema,
+        modifiedOutputSchema,
         partitionKeyFilters.toSeq,
         dataFilters,
         l.catalogTable.map(_.identifier))
@@ -332,7 +349,55 @@ object MixedFormatHandler {
     } else {
       ProjectExec(projects, withFilter)
     }
-    (withProjections.inputRDDs().head, fileFormat.supportBatch(sparkSession, outputSchema))
+    val convertedRdd = getConvertedInternalRow(modifiedOutputSchema,
+      withProjections.inputRDDs().head,
+      fileFormat.supportBatch(sparkSession, modifiedOutputSchema))
+    (convertedRdd, fileFormat.supportBatch(sparkSession, modifiedOutputSchema))
+  }
+
+  def getConvertedInternalRow(outSchema: StructType, rdd: RDD[InternalRow], isBatch: Boolean): RDD[InternalRow] = {
+    var floatIndex = scala.collection.mutable.Set[Int]()
+    var i: Int = 0
+    for (schema <- outSchema) {
+      if (schema.dataType == FloatType) {
+        floatIndex += i
+      }
+      i = i + 1
+    }
+    var updatedRdd = rdd
+    if (!floatIndex.isEmpty) {
+      if (isBatch) {
+        // Here need to convert from columnarbatch to Internalrow
+          val updated = rdd.map { internalRow =>
+            //val columnarBatch = internalRow.asInstanceOf[ColumnarBatch]
+            //val rows = columnarBatch.rowIterator
+            //val i = rows.next()
+            //val mutableColumnarRow = i.copy()
+            //for (index <- floatIndex) {
+            //  mutableColumnarRow.setDouble(index, mutableColumnarRow.getFloat(index))
+            //}
+            //mutableColumnarRow
+            internalRow
+          }
+      } else {
+        updatedRdd = rdd.map { internalRow =>
+          if (internalRow.isInstanceOf[MutableColumnarRow]) {
+            val mutableColumnarRow = internalRow.copy()
+            for (index <- floatIndex) {
+              mutableColumnarRow.setDouble(index, mutableColumnarRow.getFloat(index))
+            }
+            mutableColumnarRow
+          } else {
+            // type is UnsafeRow
+            for (index <- floatIndex) {
+              internalRow.setDouble(index, internalRow.getFloat(index))
+            }
+            internalRow
+          }
+        }
+      }
+    }
+    updatedRdd
   }
 
   // This function is used to get the unique columns based on expression Id from
