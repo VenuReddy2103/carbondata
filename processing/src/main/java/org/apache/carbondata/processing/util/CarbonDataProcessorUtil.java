@@ -740,13 +740,15 @@ public final class CarbonDataProcessorUtil {
    * @return
    */
   public static List<CarbonIterator<Object[]>>[] partitionInputReaderIterators(
-      CarbonIterator<Object[]>[] inputIterators, short sdkWriterCores) {
+      CarbonIterator<Object[]>[] inputIterators, short sdkWriterCores, int loadMinSize) {
     // Get the number of cores configured in property.
-    int numberOfCores;
-    if (sdkWriterCores > 0) {
-      numberOfCores = sdkWriterCores;
-    } else {
-      numberOfCores = CarbonProperties.getInstance().getNumberOfLoadingCores();
+    int numberOfCores = 1;
+    if (loadMinSize == 0) {
+      if (sdkWriterCores > 0) {
+        numberOfCores = sdkWriterCores;
+      } else {
+        numberOfCores = CarbonProperties.getInstance().getNumberOfLoadingCores();
+      }
     }
     // Get the minimum of number of cores and iterators size to get the number of parallel threads
     // to be launched.

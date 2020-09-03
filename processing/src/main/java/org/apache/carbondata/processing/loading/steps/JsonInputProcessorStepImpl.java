@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.carbondata.common.CarbonIterator;
+import org.apache.carbondata.core.constants.CarbonCommonConstants;
 import org.apache.carbondata.core.util.CarbonProperties;
 import org.apache.carbondata.processing.loading.AbstractDataLoadProcessorStep;
 import org.apache.carbondata.processing.loading.CarbonDataLoadConfiguration;
@@ -68,8 +69,8 @@ public class JsonInputProcessorStepImpl extends AbstractDataLoadProcessorStep {
   @Override
   public Iterator<CarbonRowBatch>[] execute() {
     int batchSize = CarbonProperties.getInstance().getBatchSize();
-    List<CarbonIterator<Object[]>>[] readerIterators =
-        CarbonDataProcessorUtil.partitionInputReaderIterators(inputIterators, sdkWriterCores);
+    List<CarbonIterator<Object[]>>[] readerIterators = CarbonDataProcessorUtil
+        .partitionInputReaderIterators(inputIterators, sdkWriterCores, 0);
     Iterator<CarbonRowBatch>[] outIterators = new Iterator[readerIterators.length];
     for (int i = 0; i < outIterators.length; i++) {
       outIterators[i] =

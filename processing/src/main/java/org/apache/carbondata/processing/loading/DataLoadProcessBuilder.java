@@ -275,6 +275,10 @@ public final class DataLoadProcessBuilder {
     configuration.setNumberOfLoadingCores(CarbonProperties.getInstance().getNumberOfLoadingCores());
 
     configuration.setColumnCompressor(loadModel.getColumnCompressor());
+    SortScopeOptions.SortScope sortScope = CarbonDataProcessorUtil.getSortScope(configuration);
+    if (sortScope.equals(SortScopeOptions.SortScope.NO_SORT)) {
+      configuration.setDataLoadProperty(CarbonCommonConstants.CARBON_LOAD_MIN_SIZE_INMB, loadModel.getLoadMinSize());
+    }
     return configuration;
   }
 

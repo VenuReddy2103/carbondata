@@ -28,6 +28,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.carbondata.common.CarbonIterator;
+import org.apache.carbondata.core.constants.CarbonCommonConstants;
 import org.apache.carbondata.core.datastore.row.CarbonRow;
 import org.apache.carbondata.core.util.CarbonProperties;
 import org.apache.carbondata.core.util.CarbonThreadFactory;
@@ -82,8 +83,14 @@ public class InputProcessorStepImpl extends AbstractDataLoadProcessorStep {
   @Override
   public Iterator<CarbonRowBatch>[] execute() {
     int batchSize = CarbonProperties.getInstance().getBatchSize();
-    List<CarbonIterator<Object[]>>[] readerIterators =
-        CarbonDataProcessorUtil.partitionInputReaderIterators(inputIterators, sdkWriterCores);
+    int loadMinSize = 0;
+    String loadMinSizeStr =
+        (String) configuration.getDataLoadProperty(CarbonCommonConstants.CARBON_LOAD_MIN_SIZE_INMB);
+    if (loadMinSizeStr != null) {
+      loadMinSize = Integer.parseInt(loadMinSizeStr);
+    }
+    List<CarbonIterator<Object[]>>[] readerIterators = CarbonDataProcessorUtil
+        .partitionInputReaderIterators(inputIterators, sdkWriterCores, loadMinSize);
     Iterator<CarbonRowBatch>[] outIterators = new Iterator[readerIterators.length];
     for (int i = 0; i < outIterators.length; i++) {
       outIterators[i] =

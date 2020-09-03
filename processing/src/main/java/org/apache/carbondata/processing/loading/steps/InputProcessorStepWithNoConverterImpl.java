@@ -194,8 +194,8 @@ public class InputProcessorStepWithNoConverterImpl extends AbstractDataLoadProce
   @Override
   public Iterator<CarbonRowBatch>[] execute() {
     int batchSize = CarbonProperties.getInstance().getBatchSize();
-    List<CarbonIterator<Object[]>>[] readerIterators =
-        CarbonDataProcessorUtil.partitionInputReaderIterators(this.inputIterators, sdkWriterCores);
+    List<CarbonIterator<Object[]>>[] readerIterators = CarbonDataProcessorUtil
+        .partitionInputReaderIterators(this.inputIterators, sdkWriterCores, 0);
     Iterator<CarbonRowBatch>[] outIterators = new Iterator[readerIterators.length];
     for (int i = 0; i < outIterators.length; i++) {
       outIterators[i] =
