@@ -83,7 +83,7 @@ object IndexServer extends ServerInterface {
 
   private val LOGGER = LogServiceFactory.getLogService(this.getClass.getName)
 
-  private val serverIp: String = CarbonProperties.getInstance().getIndexServerIP
+  private var serverIp: String = CarbonProperties.getInstance().getIndexServerIP
 
   private lazy val serverPort: Int = CarbonProperties.getInstance().getIndexServerPort
 
@@ -241,6 +241,12 @@ object IndexServer extends ServerInterface {
     }
 
   def main(args: Array[String]): Unit = {
+    CarbonProperties.getInstance()
+      .addProperty(CarbonCommonConstants.CARBON_INDEX_SERVER_IP, "localhost")
+      .addProperty(CarbonCommonConstants.CARBON_INDEX_SERVER_PORT, "9999")
+      // .addProperty(CarbonCommonConstants.CARBON_ENABLE_INDEX_SERVER, "true")
+      // .addProperty(CarbonCommonConstants.CARBON_DISABLE_INDEX_SERVER_FALLBACK, "true")
+    serverIp = CarbonProperties.getInstance().getIndexServerIP
     if (serverIp.isEmpty) {
       throw new RuntimeException(s"Please set the server IP to use Index Cache Server")
     } else {
@@ -277,6 +283,7 @@ object IndexServer extends ServerInterface {
   private def createCarbonSession(): SparkSession = {
     val spark = SparkSession
       .builder().config(new SparkConf())
+      .master("local")
       .appName("DistributedIndexServer")
       .enableHiveSupport()
       .config("spark.sql.extensions", "org.apache.spark.sql.CarbonExtensions")
