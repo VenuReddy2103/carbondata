@@ -102,7 +102,10 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
 
     matchingIndexTables = CarbonCostBasedOptimizer.identifyRequiredTables(
       filterAttributes.asJava,
-      CarbonIndexUtil.getSecondaryIndexes(indexableRelation).mapValues(_.toList.asJava).asJava)
+      CarbonIndexUtil
+        .getSecondaryIndexesMap(indexableRelation.carbonTable)
+        .mapValues(_.toList.asJava)
+        .asJava)
       .asScala
 
     // filter out all the index tables which are disabled
@@ -163,7 +166,8 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
       val indexTableAttributeMap: mutable.Map[String, Map[String, AttributeReference]] =
         new mutable.HashMap[String, Map[String, AttributeReference]]()
       // mapping of all the index tables and its columns created on the main table
-      val allIndexTableToColumnMapping = CarbonIndexUtil.getSecondaryIndexes(indexableRelation)
+      val allIndexTableToColumnMapping = CarbonIndexUtil.getSecondaryIndexesMap(indexableRelation
+        .carbonTable)
 
       enabledMatchingIndexTables.foreach { matchedTable =>
         // create index table to index column mapping
@@ -801,7 +805,7 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
         (limit, transformChild)
       case filter@Filter(condition, _@MatchIndexableRelation(indexableRelation))
         if !condition.isInstanceOf[IsNotNull] &&
-           CarbonIndexUtil.getSecondaryIndexes(indexableRelation).nonEmpty =>
+           CarbonIndexUtil.getSecondaryIndexesMap(indexableRelation.carbonTable).nonEmpty =>
         val reWrittenPlan = rewritePlanForSecondaryIndex(
           filter,
           indexableRelation,
@@ -822,7 +826,7 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
       case projection@Project(cols, filter@Filter(condition,
       _@MatchIndexableRelation(indexableRelation)))
         if !condition.isInstanceOf[IsNotNull] &&
-           CarbonIndexUtil.getSecondaryIndexes(indexableRelation).nonEmpty =>
+           CarbonIndexUtil.getSecondaryIndexesMap(indexableRelation.carbonTable).nonEmpty =>
         val reWrittenPlan = rewritePlanForSecondaryIndex(
           filter,
           indexableRelation,
@@ -851,7 +855,7 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
       case limit@Limit(literal: Literal,
       filter@Filter(condition, _@MatchIndexableRelation(indexableRelation)))
         if !condition.isInstanceOf[IsNotNull] &&
-           CarbonIndexUtil.getSecondaryIndexes(indexableRelation).nonEmpty =>
+           CarbonIndexUtil.getSecondaryIndexesMap(indexableRelation.carbonTable).nonEmpty =>
         val carbonRelation = filter.child.asInstanceOf[LogicalRelation].relation
           .asInstanceOf[CarbonDatasourceHadoopRelation].carbonRelation
         val uniqueTableName = s"${ carbonRelation.databaseName }.${ carbonRelation.tableName }"
@@ -878,7 +882,7 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
       case limit@Limit(literal: Literal, projection@Project(cols, filter@Filter(condition,
       _@MatchIndexableRelation(indexableRelation))))
         if !condition.isInstanceOf[IsNotNull] &&
-           CarbonIndexUtil.getSecondaryIndexes(indexableRelation).nonEmpty =>
+           CarbonIndexUtil.getSecondaryIndexesMap(indexableRelation.carbonTable).nonEmpty =>
         val carbonRelation = filter.child.asInstanceOf[LogicalRelation].relation
           .asInstanceOf[CarbonDatasourceHadoopRelation].carbonRelation
         val uniqueTableName = s"${ carbonRelation.databaseName }.${ carbonRelation.tableName }"
@@ -954,7 +958,10 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
     val parentTableRelation = parentRelation.get
     val matchingIndexTables = CarbonCostBasedOptimizer.identifyRequiredTables(
       filterAttributes.toSet.asJava,
-      CarbonIndexUtil.getSecondaryIndexes(parentTableRelation).mapValues(_.toList.asJava).asJava)
+      CarbonIndexUtil
+        .getSecondaryIndexesMap(parentTableRelation.carbonTable)
+        .mapValues(_.toList.asJava)
+        .asJava)
       .asScala
     val databaseName = parentTableRelation.carbonRelation.databaseName
     // filter out all the index tables which are disabled

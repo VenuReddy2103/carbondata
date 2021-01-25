@@ -16,25 +16,37 @@
  */
 package org.apache.carbondata.indexserver
 
+import java.util
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.mapreduce.InputSplit
-import org.apache.spark.Partition
+import org.apache.spark.{CarbonInputMetrics, Partition}
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.index.CarbonIndexUtil
+import org.apache.spark.sql.secondaryindex.optimizer.CarbonCostBasedOptimizer
+import org.apache.spark.sql.util.SparkSQLUtil
 
 import org.apache.carbondata.common.logging.LogServiceFactory
-import org.apache.carbondata.core.index.{IndexInputSplit, IndexStoreManager, Segment}
+import org.apache.carbondata.core.constants.CarbonCommonConstants
+import org.apache.carbondata.core.datastore.row.CarbonRow
+import org.apache.carbondata.core.index.{IndexFilter, IndexInputFormat, IndexInputSplit, IndexStoreManager, Segment}
 import org.apache.carbondata.core.index.dev.expr.IndexInputSplitWrapper
 import org.apache.carbondata.core.metadata.AbsoluteTableIdentifier
 import org.apache.carbondata.core.metadata.schema.table.CarbonTable
 import org.apache.carbondata.core.readcommitter.{LatestFilesReadCommittedScope, TableStatusReadCommittedScope}
+import org.apache.carbondata.core.scan.expression.{ColumnExpression, Expression, UnknownExpression}
+import org.apache.carbondata.core.scan.filter.FilterUtil
 import org.apache.carbondata.core.statusmanager.SegmentUpdateStatusManager
 import org.apache.carbondata.core.util.CarbonProperties
 import org.apache.carbondata.events.{IndexServerLoadEvent, OperationContext, OperationListenerBus}
+import org.apache.carbondata.hadoop.CarbonProjection
 import org.apache.carbondata.hadoop.util.CarbonInputFormatUtil
+import org.apache.carbondata.spark.rdd.CarbonScanRDD
+import org.apache.carbondata.store.CarbonRowReadSupport
 
 object DistributedRDDUtils {
   private val LOGGER = LogServiceFactory.getLogService(this.getClass.getCanonicalName)
@@ -167,6 +179,80 @@ object DistributedRDDUtils {
   def invalidateTableMapping(tableUniqueName: String): Unit = {
     synchronized {
       tableToExecutorMapping.remove(tableUniqueName)
+    }
+  }
+
+  def getFilterColumns(filterExpression: Expression): ListBuffer[String] = {
+    val filterColumns = ListBuffer[ListBuffer[String]]()
+    for (expression <- filterExpression.getChildren().asScala) {
+      expression match {
+        case columnExpression: ColumnExpression => filterColumns +=
+                                                   ListBuffer(columnExpression.getColumnName)
+        case unknownExpression: UnknownExpression =>
+          for (col <- unknownExpression.getAllColumnList().asScala) {
+            filterColumns += ListBuffer(col.getColumnName)
+          }
+        case _ => filterColumns += getFilterColumns(expression)
+      }
+    }
+    filterColumns.flatten.distinct
+  }
+
+  def ScanSI(request: IndexInputFormat): Array[CarbonRow] = {
+    val carbonTable = request.getCarbonTable
+    val filterExpression = request.getFilterResolverIntf.getFilterExpression
+    val filterAttributes = getFilterColumns(filterExpression)
+    if (filterAttributes.contains(CarbonCommonConstants.POSITION_ID)) {
+      Array.empty[CarbonRow]
+    } else {
+      val matchingIndexTables = CarbonCostBasedOptimizer
+        .identifyRequiredTables(filterAttributes.toSet.asJava,
+          CarbonIndexUtil.getSecondaryIndexesMap(carbonTable).mapValues(_.toList.asJava).asJava)
+        .asScala
+      if (matchingIndexTables.isEmpty) {
+        Array.empty[CarbonRow]
+      } else {
+        val warehousePath = carbonTable.getTablePath
+          .substring(0, carbonTable.getTablePath.lastIndexOf('/'))
+        val indexTable = IndexStoreManager.getInstance
+          .getCarbonTable(AbsoluteTableIdentifier.from(
+            warehousePath + '/' + matchingIndexTables.head,
+            carbonTable.getCarbonTableIdentifier.getDatabaseName,
+            matchingIndexTables.head))
+        val rdd = new CarbonScanRDD[CarbonRow](SparkSQLUtil.getSparkSession,
+          new CarbonProjection(Array(CarbonCommonConstants.POSITION_REFERENCE)),
+          new IndexFilter(indexTable, request.getFilterResolverIntf.getFilterExpression),
+          indexTable.getAbsoluteTableIdentifier,
+          indexTable.getTableInfo.serialize,
+          indexTable.getTableInfo,
+          new CarbonInputMetrics,
+          null,
+          null,
+          classOf[CarbonRowReadSupport])
+        rdd.collect
+      }
+    }
+  }
+
+  def PruneWithSI(request: IndexInputFormat): Unit = {
+    if (request.getFilterResolverIntf != null) {
+      val rows = ScanSI(request)
+      if (!rows.isEmpty) {
+        // Append the positionId to filter
+        val blockIdToBlockletMap: java.util.Map[java.lang.String, java.util.Set[java.lang
+        .Integer]] = new util.HashMap()
+        rows.map(row => {
+          val blockletPath = row.getString(0)
+          val blockletIdIndex = blockletPath.lastIndexOf('/')
+          val blockPath = blockletPath.substring(0, blockletIdIndex)
+          val blocketIdSet = blockIdToBlockletMap.getOrDefault(blockPath, new util.HashSet())
+          blocketIdSet.add(blockletPath.substring(blockletIdIndex + 1).toInt)
+          blockIdToBlockletMap.put(blockPath, blocketIdSet)
+        })
+        FilterUtil.createImplicitExpressionAndSetAsRightChild(request
+          .getFilterResolverIntf
+          .getFilterExpression, blockIdToBlockletMap)
+      }
     }
   }
 

@@ -38,9 +38,16 @@ object CarbonSessionExample {
 
     CarbonProperties.getInstance()
       .addProperty(CarbonCommonConstants.ENABLE_QUERY_STATISTICS, "false")
-    val spark = ExampleUtils.createSparkSession("CarbonSessionExample")
+    val spark = ExampleUtils.createCarbonSession("CarbonSessionExample")
     spark.sparkContext.setLogLevel("error")
-    exampleBody(spark)
+    Seq(
+      "stored as carbondata",
+      "using carbondata",
+      "stored by 'carbondata'",
+      "stored by 'org.apache.carbondata.format'"
+    ).foreach { formatSyntax =>
+      exampleBody(spark, formatSyntax)
+    }
     spark.close()
   }
 
@@ -82,10 +89,57 @@ object CarbonSessionExample {
 
     spark.sql(
       s"""
-         | SELECT charField, shortField, stringField, intField
+         | SELECT charField, stringField, intField
          | FROM source
-         | WHERE intfield=10
+         | WHERE stringfield = 'spark' AND decimalField > 40
       """.stripMargin).show()
+
+    spark.sql(
+      s"""
+         | SELECT *
+         | FROM source WHERE length(stringField) = 5
+       """.stripMargin).show()
+
+    spark.sql(
+      s"""
+         | SELECT *
+         | FROM source WHERE date_format(dateField, "yyyy-MM-dd") = "2015-07-23"
+       """.stripMargin).show()
+
+    spark.sql("SELECT count(stringField) FROM source").show()
+
+    spark.sql(
+      s"""
+         | SELECT sum(intField), stringField
+         | FROM source
+         | GROUP BY stringField
+       """.stripMargin).show()
+
+    spark.sql(
+      s"""
+         | SELECT t1.*, t2.*
+         | FROM source t1, source t2
+         | WHERE t1.stringField = t2.stringField
+      """.stripMargin).show()
+
+    spark.sql(
+      s"""
+         | WITH t1 AS (
+         | SELECT * FROM source
+         | UNION ALL
+         | SELECT * FROM source
+         | )
+         | SELECT t1.*, t2.*
+         | FROM t1, source t2
+         | WHERE t1.stringField = t2.stringField
+      """.stripMargin).show()
+
+    spark.sql(
+      s"""
+         | SELECT *
+         | FROM source
+         | WHERE stringField = 'spark' and floatField > 2.8
+       """.stripMargin).show()
 
     // Drop table
     spark.sql("DROP TABLE IF EXISTS source")
