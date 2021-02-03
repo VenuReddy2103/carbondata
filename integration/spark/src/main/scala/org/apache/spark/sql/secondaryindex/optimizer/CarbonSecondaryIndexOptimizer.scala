@@ -33,6 +33,7 @@ import org.apache.spark.sql.hive.{CarbonHiveIndexMetadataUtil, CarbonRelation}
 import org.apache.spark.sql.index.CarbonIndexUtil
 import org.apache.spark.sql.secondaryindex.optimizer
 import org.apache.spark.sql.secondaryindex.optimizer.NodeType.NodeType
+import org.apache.spark.sql.secondaryindex.util.SecondaryIndexUtil
 
 import org.apache.carbondata.core.constants.CarbonCommonConstants
 import org.apache.carbondata.core.datastore.impl.FileFactory
@@ -95,7 +96,7 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
     // Removed is Not Null filter from all filters and other attributes are selected
     // isNotNull filter will return all the unique values except null from table,
     // For High Cardinality columns, this filter is of no use, hence skipping it.
-    removeIsNotNullAttribute(filter.condition, pushDownNotNullFilter) collect {
+    SecondaryIndexUtil.removeIsNotNullAttribute(filter.condition, pushDownNotNullFilter) collect {
       case attr: AttributeReference =>
         filterAttributes = filterAttributes. +(attr.name.toLowerCase)
     }
@@ -443,26 +444,6 @@ class CarbonSecondaryIndexOptimizer(sparkSession: SparkSession) {
         indexLogicalPlan))
     // return the data frame
     allIndexTablesDF
-  }
-
-  private def removeIsNotNullAttribute(condition: Expression,
-      pushDownNotNullFilter: Boolean): Expression = {
-    val isPartialStringEnabled = CarbonProperties.getInstance
-      .getProperty(CarbonCommonConstants.ENABLE_SI_LOOKUP_PARTIALSTRING,
-        CarbonCommonConstants.ENABLE_SI_LOOKUP_PARTIALSTRING_DEFAULT)
-      .equalsIgnoreCase("true")
-    condition transform {
-      // Like is possible only if user provides _ in between the string
-      // _ in like means any single character wild card check.
-      case IsNotNull(child: AttributeReference) => Literal(!pushDownNotNullFilter)
-      case plan if (CarbonHiveIndexMetadataUtil.checkNIUDF(plan)) => Literal(true)
-      case Like(left: AttributeReference, right: Literal) if (!isPartialStringEnabled) => Literal(
-        true)
-      case EndsWith(left: AttributeReference,
-      right: Literal) if (!isPartialStringEnabled) => Literal(true)
-      case Contains(left: AttributeReference,
-      right: Literal) if (!isPartialStringEnabled) => Literal(true)
-    }
   }
 
   private def conditionsHasStartWith(condition: Expression): Boolean = {

@@ -83,7 +83,8 @@ class CarbonScanRDD[T: ClassTag](
     @transient val partitionNames: Seq[PartitionSpec],
     val dataTypeConverterClz: Class[_ <: DataTypeConverter] = classOf[SparkDataTypeConverterImpl],
     val readSupportClz: Class[_ <: CarbonReadSupport[_]] = SparkReadSupport.readSupportClass,
-    @transient var splits: java.util.List[InputSplit] = null)
+    @transient var splits: java.util.List[InputSplit] = null,
+    var indexTablesToScan: java.util.List[java.lang.String] = Seq.empty.asJava)
   extends CarbonRDDWithTableInfo[T](spark, Nil, serializedTableInfo) {
 
   private val queryId = sparkContext.getConf.get("queryId", System.nanoTime() + "")
@@ -621,6 +622,8 @@ class CarbonScanRDD[T: ClassTag](
     }
 
     CarbonInputFormat.setTransactionalTable(conf, tableInfo.isTransactionalTable)
+    CarbonInputFormat.setIndexTablesToScan(conf,
+      ObjectSerializationUtil.convertObjectToString(indexTablesToScan))
     createInputFormat(conf)
   }
 

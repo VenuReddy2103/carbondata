@@ -26,6 +26,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.spark.{CarbonInputMetrics, Partition}
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.index.CarbonIndexUtil
 import org.apache.spark.sql.secondaryindex.optimizer.CarbonCostBasedOptimizer
 import org.apache.spark.sql.util.SparkSQLUtil
@@ -35,10 +36,14 @@ import org.apache.carbondata.core.constants.CarbonCommonConstants
 import org.apache.carbondata.core.datastore.row.CarbonRow
 import org.apache.carbondata.core.index.{IndexFilter, IndexInputFormat, IndexInputSplit, IndexStoreManager, Segment}
 import org.apache.carbondata.core.index.dev.expr.IndexInputSplitWrapper
+import org.apache.carbondata.core.indexstore.ExtendedBlockletWrapper
 import org.apache.carbondata.core.metadata.AbsoluteTableIdentifier
+import org.apache.carbondata.core.metadata.datatype.DataTypes
 import org.apache.carbondata.core.metadata.schema.table.CarbonTable
 import org.apache.carbondata.core.readcommitter.{LatestFilesReadCommittedScope, TableStatusReadCommittedScope}
-import org.apache.carbondata.core.scan.expression.{ColumnExpression, Expression, UnknownExpression}
+import org.apache.carbondata.core.scan.expression.conditional.{ImplicitExpression, InExpression}
+import org.apache.carbondata.core.scan.expression.logical.{AndExpression, TrueExpression}
+import org.apache.carbondata.core.scan.expression.{BinaryExpression, ColumnExpression, Expression, UnknownExpression}
 import org.apache.carbondata.core.scan.filter.FilterUtil
 import org.apache.carbondata.core.statusmanager.SegmentUpdateStatusManager
 import org.apache.carbondata.core.util.CarbonProperties
@@ -209,6 +214,11 @@ object DistributedRDDUtils {
         .identifyRequiredTables(filterAttributes.toSet.asJava,
           CarbonIndexUtil.getSecondaryIndexesMap(carbonTable).mapValues(_.toList.asJava).asJava)
         .asScala
+      // filter out all the index tables which are disabled
+      /* val enabledMatchingIndexTables = matchingIndexTables
+        .filter(table => sparkSession.sessionState.catalog
+          .getTableMetadata(TableIdentifier(table, Some(dbName))).storage.properties
+          .getOrElse("isSITableEnabled", "true").equalsIgnoreCase("true")) */
       if (matchingIndexTables.isEmpty) {
         Array.empty[CarbonRow]
       } else {
@@ -219,6 +229,10 @@ object DistributedRDDUtils {
             warehousePath + '/' + matchingIndexTables.head,
             carbonTable.getCarbonTableIdentifier.getDatabaseName,
             matchingIndexTables.head))
+        LOGGER.info(s"Selected SI table - ${
+          indexTable
+            .getTableName
+        } for query pruning on main table - ${ carbonTable.getTableName }")
         val rdd = new CarbonScanRDD[CarbonRow](SparkSQLUtil.getSparkSession,
           new CarbonProjection(Array(CarbonCommonConstants.POSITION_REFERENCE)),
           new IndexFilter(indexTable, request.getFilterResolverIntf.getFilterExpression),
@@ -249,12 +263,61 @@ object DistributedRDDUtils {
           blocketIdSet.add(blockletPath.substring(blockletIdIndex + 1).toInt)
           blockIdToBlockletMap.put(blockPath, blocketIdSet)
         })
-        FilterUtil.createImplicitExpressionAndSetAsRightChild(request
+        LOGGER.info(s"Added implicit expression. BlockIdToBlockletMap size - ${
+          blockIdToBlockletMap.size()
+        }")
+        val expression = request
           .getFilterResolverIntf
-          .getFilterExpression, blockIdToBlockletMap)
+          .getFilterExpression
+          .asInstanceOf[BinaryExpression]
+        val children = expression.getChildren.asScala.toArray
+        val modifiedExpression = new AndExpression(children(0), children(1))
+        expression.findAndSetChild(expression.getLeft, modifiedExpression)
+        // expression.findAndSetChild(expression.getRight, new TrueExpression(null))
+        // FilterUtil.createImplicitExpressionAndSetAsRightChild(expression, blockIdToBlockletMap)
+        expression.findAndSetChild(expression.getRight,
+          new InExpression(new ColumnExpression(CarbonCommonConstants.POSITION_ID,
+            DataTypes.STRING), new ImplicitExpression(blockIdToBlockletMap)))
+        val indexFilter = new IndexFilter(request.getCarbonTable, expression)
+        request.setFilterResolverIntf(indexFilter.getResolver)
       }
     }
   }
+
+  def pruneWithSITables(request: IndexInputFormat): Array[CarbonRow] = {
+    val carbonTable = request.getCarbonTable
+    val warehousePath = carbonTable.getTablePath
+      .substring(0, carbonTable.getTablePath.lastIndexOf('/'))
+    var prevRdd: CarbonScanRDD[CarbonRow] = null
+    request.getIndexTablesToScan.asScala foreach  { indexTableName =>
+      val indexTable = IndexStoreManager.getInstance
+        .getCarbonTable(AbsoluteTableIdentifier.from(
+          warehousePath + '/' + indexTableName,
+          carbonTable.getCarbonTableIdentifier.getDatabaseName,
+          indexTableName))
+      val rdd = new CarbonScanRDD[CarbonRow](SparkSQLUtil.getSparkSession,
+        new CarbonProjection(Array(CarbonCommonConstants.POSITION_REFERENCE)),
+        new IndexFilter(indexTable, request.getFilterResolverIntf.getFilterExpression),
+        indexTable.getAbsoluteTableIdentifier,
+        indexTable.getTableInfo.serialize,
+        indexTable.getTableInfo,
+        new CarbonInputMetrics,
+        null,
+        null,
+        classOf[CarbonRowReadSupport])
+      if (prevRdd != null) {
+        prevRdd.intersection(rdd)
+      } else {
+        prevRdd = rdd
+      }
+    }
+    if (prevRdd != null) {
+      prevRdd.collect
+    } else {
+      Array.empty
+    }
+  }
+
 
   /**
    * Invalidate the dead executors from the mapping and assign the segments to some other

@@ -29,10 +29,11 @@ import org.apache.hadoop.mapreduce.Job
 import org.apache.log4j.Logger
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.rdd.CarbonMergeFilesRDD
-import org.apache.spark.sql.{CarbonEnv, SparkSession, SQLContext}
+import org.apache.spark.sql.{CarbonEnv, SQLContext, SparkSession}
 import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Contains, EndsWith, Expression, IsNotNull, Like, Literal}
 import org.apache.spark.sql.execution.command.{CarbonMergerMapping, CompactionCallableModel}
-import org.apache.spark.sql.hive.CarbonRelation
+import org.apache.spark.sql.hive.{CarbonHiveIndexMetadataUtil, CarbonRelation}
 import org.apache.spark.sql.index.CarbonIndexUtil
 import org.apache.spark.sql.optimizer.CarbonFilters
 import org.apache.spark.sql.secondaryindex.rdd.{CarbonSIRebuildRDD, SecondaryIndexCreator}
@@ -784,4 +785,23 @@ object SecondaryIndexUtil {
     partitions.toString
   }
 
+  def removeIsNotNullAttribute(condition: Expression,
+      pushDownNotNullFilter: Boolean): Expression = {
+    val isPartialStringEnabled = CarbonProperties.getInstance
+      .getProperty(CarbonCommonConstants.ENABLE_SI_LOOKUP_PARTIALSTRING,
+        CarbonCommonConstants.ENABLE_SI_LOOKUP_PARTIALSTRING_DEFAULT)
+      .equalsIgnoreCase("true")
+    condition transform {
+      // Like is possible only if user provides _ in between the string
+      // _ in like means any single character wild card check.
+      case IsNotNull(child: AttributeReference) => Literal(!pushDownNotNullFilter)
+      case plan if (CarbonHiveIndexMetadataUtil.checkNIUDF(plan)) => Literal(true)
+      case Like(left: AttributeReference, right: Literal) if (!isPartialStringEnabled) => Literal(
+        true)
+      case EndsWith(left: AttributeReference,
+      right: Literal) if (!isPartialStringEnabled) => Literal(true)
+      case Contains(left: AttributeReference,
+      right: Literal) if (!isPartialStringEnabled) => Literal(true)
+    }
+  }
 }

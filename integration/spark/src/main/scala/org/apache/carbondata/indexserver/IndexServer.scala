@@ -19,7 +19,7 @@ package org.apache.carbondata.indexserver
 import java.net.InetSocketAddress
 import java.security.PrivilegedAction
 import java.util.UUID
-import java.util.concurrent.{Executors, ExecutorService, ScheduledExecutorService, TimeUnit}
+import java.util.concurrent.{ExecutorService, Executors, ScheduledExecutorService, TimeUnit}
 
 import scala.collection.JavaConverters._
 
@@ -36,11 +36,13 @@ import org.apache.spark.sql.util.SparkSQLUtil
 
 import org.apache.carbondata.common.logging.LogServiceFactory
 import org.apache.carbondata.core.constants.CarbonCommonConstants
+import org.apache.carbondata.core.datastore.row.CarbonRow
 import org.apache.carbondata.core.index.IndexInputFormat
 import org.apache.carbondata.core.indexstore.{ExtendedBlockletWrapperContainer, SegmentWrapperContainer}
 import org.apache.carbondata.core.metadata.schema.table.CarbonTable
 import org.apache.carbondata.core.util.{CarbonProperties, CarbonUtil}
 import org.apache.carbondata.events.{IndexServerEvent, OperationContext, OperationListenerBus}
+import org.apache.carbondata.spark.rdd.CarbonScanRDD
 
 @ProtocolInfo(protocolName = "org.apache.carbondata.indexserver.ServerInterface",
   protocolVersion = 1)
@@ -175,7 +177,7 @@ object IndexServer extends ServerInterface {
           .invalidateSegmentMapping(request.getCarbonTable.getTableUniqueName,
             request.getInvalidSegments.asScala)
       }
-      DistributedRDDUtils.PruneWithSI(request)
+      val siPrunedRdd: Array[CarbonRow] = DistributedRDDUtils.pruneWithSITables(request)
       val splits = new DistributedPruneRDD(sparkSession, request).collect()
       if (!request.isFallbackJob) {
         DistributedRDDUtils.updateExecutorCacheSize(splits.map(_._1).toSet)

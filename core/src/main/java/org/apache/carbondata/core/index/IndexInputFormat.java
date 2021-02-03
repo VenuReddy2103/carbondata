@@ -69,6 +69,8 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
 
   private List<String> invalidSegments;
 
+  private List<String> indexTablesToScan;
+
   private List<PartitionSpec> partitions;
 
   private boolean isJobToClearIndexes = false;
@@ -124,6 +126,7 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
     this.indexLevel = indexLevel;
     this.isFallbackJob = isFallbackJob;
     this.isAsyncCall = isAsyncCall;
+    this.indexTablesToScan = new ArrayList<String>();
   }
 
   @Override
@@ -254,6 +257,10 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
     out.writeBoolean(isWriteToFile);
     out.writeBoolean(isCountStarJob);
     out.writeBoolean(isAsyncCall);
+    out.writeInt(indexTablesToScan.size());
+    for (String indexTables : indexTablesToScan) {
+      out.writeUTF(indexTables);
+    }
   }
 
   @Override
@@ -301,6 +308,11 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
     this.isWriteToFile = in.readBoolean();
     this.isCountStarJob = in.readBoolean();
     this.isAsyncCall = in.readBoolean();
+    int indexTables = in.readInt();
+    indexTablesToScan = new ArrayList<>(indexTables);
+    for (int i = 0; i < indexTables; i++) {
+      indexTablesToScan.add(in.readUTF());
+    }
   }
 
   private void initReadCommittedScope() throws IOException {
@@ -442,5 +454,13 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
 
   public ReadCommittedScope getReadCommittedScope() {
     return readCommittedScope;
+  }
+
+  public List<String> getIndexTablesToScan() {
+    return indexTablesToScan;
+  }
+
+  public void setIndexTablesToScan(List<String> indexTablesToScan) {
+    this.indexTablesToScan = indexTablesToScan;
   }
 }

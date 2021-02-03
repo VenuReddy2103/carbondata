@@ -21,12 +21,15 @@ import scala.collection.JavaConverters._
 
 import org.apache.spark.CarbonInputMetrics
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
 import org.apache.spark.sql.catalyst.expressions.{GetStructField, NamedExpression}
 import org.apache.spark.sql.execution.command.management.CarbonInsertIntoCommand
 import org.apache.spark.sql.execution.strategy.PushDownHelper
 import org.apache.spark.sql.hive.CarbonRelation
+import org.apache.spark.sql.index.CarbonIndexUtil
 import org.apache.spark.sql.optimizer.CarbonFilters
+import org.apache.spark.sql.secondaryindex.optimizer.CarbonCostBasedOptimizer
+import org.apache.spark.sql.secondaryindex.util.SecondaryIndexUtil
 import org.apache.spark.sql.sources.{And, BaseRelation, Filter, InsertableRelation, Or}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CarbonException
@@ -39,6 +42,7 @@ import org.apache.carbondata.core.metadata.AbsoluteTableIdentifier
 import org.apache.carbondata.core.metadata.schema.table.CarbonTable
 import org.apache.carbondata.core.scan.expression.Expression
 import org.apache.carbondata.core.scan.expression.logical.AndExpression
+import org.apache.carbondata.core.util.CarbonProperties
 import org.apache.carbondata.hadoop.CarbonProjection
 import org.apache.carbondata.spark.rdd.CarbonScanRDD
 
@@ -93,6 +97,13 @@ case class CarbonDatasourceHadoopRelation(
       requiredColumns.foreach(projection.addColumn)
     }
 
+    // SI plan is not rewritten
+    var indexTablesToScan: Seq[String] = Seq.empty
+    if (CarbonProperties.getInstance()
+      .isEnabledSIRewritePlan(carbonTable.getDatabaseName(), carbonTable.getTableName())) {
+      indexTablesToScan = buildIndexTableList(filterComplex, carbonTable)
+    }
+
     val inputMetricsStats: CarbonInputMetrics = new CarbonInputMetrics
     val filter = filterExpression.map(new IndexFilter(carbonTable, _, true)).orNull
     if (filter != null && filters.length == 1) {
@@ -107,7 +118,43 @@ case class CarbonDatasourceHadoopRelation(
       carbonTable.getTableInfo.serialize(),
       carbonTable.getTableInfo,
       inputMetricsStats,
-      partitions)
+      partitions,
+      indexTablesToScan = indexTablesToScan.asJava)
+  }
+
+  private def buildIndexTableList(filters: Seq[org.apache.spark.sql.catalyst.expressions
+  .Expression],
+      carbonTable: CarbonTable): Seq[String] = {
+    var originalFilterAttributes: Set[String] = Set.empty
+    var filterAttributes: Set[String] = Set.empty
+    var matchingIndexTables: Seq[String] = Seq.empty
+    var indexTableMap: Seq[String] = Seq.empty
+    // all filter attributes are retrieved
+    filters collect {
+      case attr: org.apache.spark.sql.catalyst.expressions.AttributeReference =>
+        originalFilterAttributes = originalFilterAttributes. + (attr.name.toLowerCase)
+    }
+    // Removed is Not Null filter from all filters and other attributes are selected
+    // isNotNull filter will return all the unique values except null from table,
+    // For High Cardinality columns, this filter is of no use, hence skipping it.
+    filters foreach (SecondaryIndexUtil.removeIsNotNullAttribute(_, false) collect {
+      case attr: org.apache.spark.sql.catalyst.expressions.AttributeReference =>
+        filterAttributes = filterAttributes. + (attr.name.toLowerCase)
+    })
+
+    matchingIndexTables = CarbonCostBasedOptimizer
+      .identifyRequiredTables(filterAttributes.asJava,
+        CarbonIndexUtil.getSecondaryIndexesMap(carbonTable).mapValues(_.toList.asJava).asJava)
+      .asScala
+
+    // filter out all the index tables which are disabled
+    matchingIndexTables.filter(table => sparkSession.sessionState
+      .catalog
+      .getTableMetadata(TableIdentifier(table, Some(carbonTable.getDatabaseName)))
+      .storage
+      .properties
+      .getOrElse("isSITableEnabled", "true")
+      .equalsIgnoreCase("true"))
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = new Array[Filter](0)

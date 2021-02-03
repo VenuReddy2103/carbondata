@@ -50,7 +50,8 @@ import org.apache.log4j.Logger;
 public class IndexUtil {
 
   private static final String INDEX_DSTR = "mapreduce.input.carboninputformat.indexdstr";
-
+  public static final String CARBON_INDEX_TABLES_TO_SCAN =
+      "mapreduce.input.carboninputformat.indextablestoscan";
   public static final String EMBEDDED_JOB_NAME =
       "org.apache.carbondata.indexserver.EmbeddedIndexJob";
 
@@ -101,6 +102,18 @@ public class IndexUtil {
       return (IndexJob) ObjectSerializationUtil.convertStringToObject(jobString);
     }
     return null;
+  }
+
+  public static List<String> getIndexTablesToScan(Configuration configuration) {
+    String indexTables = configuration.get(CARBON_INDEX_TABLES_TO_SCAN);
+    try {
+      if (indexTables != null) {
+        return (List<String>) ObjectSerializationUtil.convertStringToObject(indexTables);
+      }
+    } catch (IOException e) {
+      LOGGER.error("Failed to convert string to object", e);
+    }
+    return new ArrayList<String>();
   }
 
   /**
@@ -297,6 +310,7 @@ public class IndexUtil {
     IndexInputFormat indexInputFormat =
         new IndexInputFormat(carbonTable, resolver, validSegments, invalidSegmentNo,
             partitionsToPrune, false, level, isFallbackJob, false);
+    indexInputFormat.setIndexTablesToScan(IndexUtil.getIndexTablesToScan(configuration));
     if (isCountJob) {
       indexInputFormat.setCountStarJob();
       indexInputFormat.setIsWriteToFile(false);
