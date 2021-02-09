@@ -211,8 +211,9 @@ public abstract class CarbonInputFormat<T> extends FileInputFormat<Void, T> {
     configuration.set(CARBON_TRANSACTIONAL_TABLE, String.valueOf(isTransactionalTable));
   }
 
-  public static void setIndexTablesToScan(Configuration configuration, String indexTablesToScan) {
-    configuration.set(IndexUtil.CARBON_INDEX_TABLES_TO_SCAN, indexTablesToScan);
+  public static void setIndexTablesScanTree(Configuration configuration,
+      String indexTablesScanTree) {
+    configuration.set(IndexUtil.CARBON_INDEX_TABLES_SCAN_TREE, indexTablesScanTree);
   }
 
   /**

@@ -125,6 +125,17 @@ private[indexserver] class DistributedPruneRDD(@transient private val ss: SparkS
       val executorIP = s"${ SparkEnv.get.blockManager.blockManagerId.host }_${
         SparkEnv.get.blockManager.blockManagerId.executorId
       }"
+      /* val extendedBlockletWrapper = new ExtendedBlockletWrapper(f.toList.asJava,
+        indexInputFormat.getCarbonTable.getTablePath,
+        indexInputFormat.getQueryId,
+        indexInputFormat.isWriteToFile,
+        indexInputFormat.isCountStarJob)
+      if (!f.isEmpty) {
+        extendedBlockletWrapper.setBlocklets(java.util
+          .Collections
+          .singletonList(CarbonTablePath.getShortBlockId(f(0).getFilePath
+            .substring(f(0).getFilePath.lastIndexOf("/Part") + 1))))
+      } */
       val value = (executorIP + "_" + cacheSize.toString, new ExtendedBlockletWrapper(f.toList
         .asJava, indexInputFormat.getCarbonTable.getTablePath, indexInputFormat.getQueryId,
         indexInputFormat.isWriteToFile, indexInputFormat.isCountStarJob))

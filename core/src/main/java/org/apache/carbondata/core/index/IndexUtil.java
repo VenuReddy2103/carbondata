@@ -31,6 +31,7 @@ import org.apache.carbondata.core.datastore.impl.FileFactory;
 import org.apache.carbondata.core.index.dev.Index;
 import org.apache.carbondata.core.index.dev.expr.IndexExprWrapper;
 import org.apache.carbondata.core.index.dev.expr.IndexInputSplitWrapper;
+import org.apache.carbondata.core.index.dev.secondaryindex.SIExpressionTree.CarbonSIExpression;
 import org.apache.carbondata.core.indexstore.ExtendedBlocklet;
 import org.apache.carbondata.core.indexstore.PartitionSpec;
 import org.apache.carbondata.core.metadata.AbsoluteTableIdentifier;
@@ -50,8 +51,8 @@ import org.apache.log4j.Logger;
 public class IndexUtil {
 
   private static final String INDEX_DSTR = "mapreduce.input.carboninputformat.indexdstr";
-  public static final String CARBON_INDEX_TABLES_TO_SCAN =
-      "mapreduce.input.carboninputformat.indextablestoscan";
+  public static final String CARBON_INDEX_TABLES_SCAN_TREE =
+      "mapreduce.input.carboninputformat.indextablesscantree";
   public static final String EMBEDDED_JOB_NAME =
       "org.apache.carbondata.indexserver.EmbeddedIndexJob";
 
@@ -104,16 +105,17 @@ public class IndexUtil {
     return null;
   }
 
-  public static List<String> getIndexTablesToScan(Configuration configuration) {
-    String indexTables = configuration.get(CARBON_INDEX_TABLES_TO_SCAN);
+  public static CarbonSIExpression getIndexTablesScanTree(Configuration configuration) {
+    String indexTablesScanTree = configuration.get(CARBON_INDEX_TABLES_SCAN_TREE);
     try {
-      if (indexTables != null) {
-        return (List<String>) ObjectSerializationUtil.convertStringToObject(indexTables);
+      if (indexTablesScanTree != null) {
+        return (CarbonSIExpression) ObjectSerializationUtil
+            .convertStringToObject(indexTablesScanTree);
       }
     } catch (IOException e) {
       LOGGER.error("Failed to convert string to object", e);
     }
-    return new ArrayList<String>();
+    return null;
   }
 
   /**
@@ -310,7 +312,7 @@ public class IndexUtil {
     IndexInputFormat indexInputFormat =
         new IndexInputFormat(carbonTable, resolver, validSegments, invalidSegmentNo,
             partitionsToPrune, false, level, isFallbackJob, false);
-    indexInputFormat.setIndexTablesToScan(IndexUtil.getIndexTablesToScan(configuration));
+    indexInputFormat.setIndexTablesScanTree(IndexUtil.getIndexTablesScanTree(configuration));
     if (isCountJob) {
       indexInputFormat.setCountStarJob();
       indexInputFormat.setIsWriteToFile(false);

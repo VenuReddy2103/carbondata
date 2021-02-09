@@ -31,6 +31,7 @@ import org.apache.carbondata.common.logging.LogServiceFactory;
 import org.apache.carbondata.core.constants.CarbonCommonConstants;
 import org.apache.carbondata.core.datastore.impl.FileFactory;
 import org.apache.carbondata.core.index.dev.expr.IndexInputSplitWrapper;
+import org.apache.carbondata.core.index.dev.secondaryindex.SIExpressionTree.CarbonSIExpression;
 import org.apache.carbondata.core.indexstore.ExtendedBlocklet;
 import org.apache.carbondata.core.indexstore.PartitionSpec;
 import org.apache.carbondata.core.metadata.schema.table.CarbonTable;
@@ -69,8 +70,6 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
 
   private List<String> invalidSegments;
 
-  private List<String> indexTablesToScan;
-
   private List<PartitionSpec> partitions;
 
   private boolean isJobToClearIndexes = false;
@@ -97,6 +96,8 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
 
   // Whether AsyncCall to the Index Server(true in the case of pre-priming)
   private boolean isAsyncCall;
+
+  private CarbonSIExpression indexTablesScanTree;
 
   IndexInputFormat() {
 
@@ -126,7 +127,6 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
     this.indexLevel = indexLevel;
     this.isFallbackJob = isFallbackJob;
     this.isAsyncCall = isAsyncCall;
-    this.indexTablesToScan = new ArrayList<String>();
   }
 
   @Override
@@ -257,9 +257,13 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
     out.writeBoolean(isWriteToFile);
     out.writeBoolean(isCountStarJob);
     out.writeBoolean(isAsyncCall);
-    out.writeInt(indexTablesToScan.size());
-    for (String indexTables : indexTablesToScan) {
-      out.writeUTF(indexTables);
+    out.writeBoolean(indexTablesScanTree != null);
+    if (indexTablesScanTree != null) {
+      byte[] siExpressionTreeBytes =
+          ObjectSerializationUtil.convertObjectToString(indexTablesScanTree)
+              .getBytes(Charset.defaultCharset());
+      out.writeInt(siExpressionTreeBytes.length);
+      out.write(siExpressionTreeBytes);
     }
   }
 
@@ -308,10 +312,11 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
     this.isWriteToFile = in.readBoolean();
     this.isCountStarJob = in.readBoolean();
     this.isAsyncCall = in.readBoolean();
-    int indexTables = in.readInt();
-    indexTablesToScan = new ArrayList<>(indexTables);
-    for (int i = 0; i < indexTables; i++) {
-      indexTablesToScan.add(in.readUTF());
+    if (in.readBoolean()) {
+      byte[] siExpressionTreeBytes = new byte[in.readInt()];
+      in.readFully(siExpressionTreeBytes, 0, siExpressionTreeBytes.length);
+      this.indexTablesScanTree = (CarbonSIExpression) ObjectSerializationUtil
+          .convertStringToObject(new String(siExpressionTreeBytes, Charset.defaultCharset()));
     }
   }
 
@@ -456,11 +461,11 @@ public class IndexInputFormat extends FileInputFormat<Void, ExtendedBlocklet>
     return readCommittedScope;
   }
 
-  public List<String> getIndexTablesToScan() {
-    return indexTablesToScan;
+  public CarbonSIExpression getIndexTablesScanTree() {
+    return indexTablesScanTree;
   }
 
-  public void setIndexTablesToScan(List<String> indexTablesToScan) {
-    this.indexTablesToScan = indexTablesToScan;
+  public void setIndexTablesScanTree(CarbonSIExpression indexTablesScanTree) {
+    this.indexTablesScanTree = indexTablesScanTree;
   }
 }
